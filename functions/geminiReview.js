@@ -1,11 +1,16 @@
 /**
- * Strata Audit – 调用 Gemini 执行完整审计（等效参考项目 geminiReview）
+ * Strata Audit – 调用 Gemini 执行完整审计（Schema Mode）
  * 请求体：apiKey, systemPrompt, fileManifest, files: [{ name, data (base64), mimeType }], previousAudit?
+ * 使用 responseJsonSchema 约束输出格式（由 scripts/generate-audit-schema.ts 生成）。
  */
 
 const {GoogleGenAI} = require("@google/genai");
 
-const MODELS = ["gemini-2.0-flash", "gemini-1.5-flash", "gemini-1.5-pro"];
+// 使用 Gemini 3.0 Pro（Preview），支持 Structured outputs；失败时回退到 2.5 系列。
+const MODELS = ["gemini-3-pro-preview", "gemini-2.5-pro", "gemini-2.5-flash"];
+
+// 不传 responseJsonSchema：完整 auditResponseSchema 嵌套过深，会触发 API 的 "exceeds maximum allowed nesting depth"。
+// 仅用 responseMimeType: "application/json" + prompt 中的结构说明，由模型按说明输出 JSON。
 
 /**
  * @param {object} opts

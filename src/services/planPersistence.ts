@@ -4,11 +4,12 @@
  * Firestore 文档：plans/{planId}，含 userId、name、createdAt、status、filePaths、result、triage、error
  */
 
-import { ref, uploadBytes } from "firebase/storage";
+import { ref, uploadBytes, listAll, deleteObject } from "firebase/storage";
 import type { FirebaseStorage } from "firebase/storage";
 import {
   doc,
   setDoc,
+  deleteDoc,
   collection,
   query,
   where,
@@ -90,4 +91,28 @@ export async function getPlansFromFirestore(
   );
   const snap = await getDocs(q);
   return snap.docs.map((d) => ({ id: d.id, ...d.data() } as PlanDoc & { id: string }));
+}
+
+/**
+ * 删除 Storage 中该计划目录下的所有文件：users/{userId}/plans/{planId}/
+ */
+export async function deletePlanFilesFromStorage(
+  storageInstance: FirebaseStorage,
+  userId: string,
+  planId: string
+): Promise<void> {
+  const folderRef = ref(storageInstance, `users/${userId}/plans/${planId}`);
+  const listResult = await listAll(folderRef);
+  await Promise.all(listResult.items.map((itemRef) => deleteObject(itemRef)));
+}
+
+/**
+ * 删除 Firestore 中的计划文档 plans/{planId}。
+ */
+export async function deletePlanFromFirestore(
+  db: Firestore,
+  planId: string
+): Promise<void> {
+  const docRef = doc(db, "plans", planId);
+  await deleteDoc(docRef);
 }

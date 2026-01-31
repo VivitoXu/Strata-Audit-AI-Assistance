@@ -5,5 +5,7 @@ export {
   uploadPlanFiles,
   savePlanToFirestore,
   getPlansFromFirestore,
+  deletePlanFilesFromStorage,
+  deletePlanFromFirestore,
   type PlanDoc,
 } from "../src/services/planPersistence";

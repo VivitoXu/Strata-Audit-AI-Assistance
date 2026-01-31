@@ -49,6 +49,8 @@ export const LevyRecMasterSchema = z.object({
   New_Levy_Sink: TraceableValueSchema,
   New_Levy_Total: TraceableValueSchema,
   Sub_Levies_Standard: TraceableValueSchema,
+  Sub_Levies_Standard_Admin: TraceableValueSchema.optional(),
+  Sub_Levies_Standard_Sink: TraceableValueSchema.optional(),
   Spec_Levy_Admin: TraceableValueSchema,
   Spec_Levy_Sink: TraceableValueSchema,
   Spec_Levy_Total: TraceableValueSchema,

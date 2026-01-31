@@ -1,5 +1,6 @@
 import { GoogleGenAI } from "@google/genai";
 import { buildSystemPrompt } from "../audit_engine";
+import { getAuditResponseJsonSchema } from "../audit_outputs/json_schema";
 import type { AuditResponse } from "../audit_outputs/type_definitions";
 
 export const analyzeAuditFiles = async (
@@ -72,6 +73,7 @@ export const analyzeAuditFiles = async (
         config: {
           systemInstruction: systemPrompt,
           responseMimeType: "application/json",
+          responseJsonSchema: getAuditResponseJsonSchema(),
         },
       });
 

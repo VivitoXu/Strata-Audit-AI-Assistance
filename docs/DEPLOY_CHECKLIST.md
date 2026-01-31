@@ -78,3 +78,17 @@
    或一次性：`npx firebase deploy --only hosting,functions,firestore,storage`。
 
 完成以上后，当前 app 即可部署；若使用 CI，再按「三」配置 FIREBASE_TOKEN（及按需配置 VITE_FIREBASE_*）。
+
+---
+
+## 五、executeFullReview 返回 500 时排查
+
+若前端调用审计时出现 **500 Internal Server Error**：
+
+1. **看响应内容**：浏览器开发者工具 → Network → 点击失败的 `executeFullReview` 请求 → **Response** 标签，查看返回的 `error` 字段（如 "Gemini API Key not configured..."）。
+2. **看云端日志**：Firebase Console → [Functions](https://console.firebase.google.com/project/strata-audit-ai-reviewer/functions) → 选择 `executeFullReview` → **日志**，查看具体报错与堆栈。
+3. **确认 GEMINI_API_KEY**：
+   - [Google Cloud Secret Manager](https://console.cloud.google.com/security/secret-manager?project=strata-audit-ai-reviewer) 中是否存在名为 **GEMINI_API_KEY** 的密钥。
+   - 若不存在：创建密钥，名称 `GEMINI_API_KEY`，值为你的 [Gemini API Key](https://aistudio.google.com/apikey)，然后执行 `firebase deploy --only functions` 重新部署（部署时会绑定该 Secret）。
+   - 若已存在仍 500：确认密钥的「版本」已启用，且 Cloud Functions 使用的服务账号拥有 **Secret Manager 密文访问者** 权限（通常部署时授权即可）。
+4. **请求体过大**：若上传的 PDF 很多或很大，请求体可能超过 10MB 导致失败，可先减少文件数量或大小测试。

@@ -42,6 +42,8 @@ export interface LevyRecMaster {
   New_Levy_Sink: TraceableValue;
   New_Levy_Total: TraceableValue;
   Sub_Levies_Standard: TraceableValue;
+  Sub_Levies_Standard_Admin?: TraceableValue;
+  Sub_Levies_Standard_Sink?: TraceableValue;
   Spec_Levy_Admin: TraceableValue;
   Spec_Levy_Sink: TraceableValue;
   Spec_Levy_Total: TraceableValue;

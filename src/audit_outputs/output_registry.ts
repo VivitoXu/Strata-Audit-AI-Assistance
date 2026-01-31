@@ -7,11 +7,16 @@ export const MODULE_50_OUTPUTS_PROMPT = `
 --- MODULE 50_OUTPUTS (JSON STRUCTURE) ---
 You must strictly return a single JSON object matching the schema below.
 Ensure "document_register" and "intake_summary" are fully populated based on the uploaded files.
+**document_register**: Must be a list. Each Document Type (AGM Minutes, Committee Minutes, General Ledger, Financial Statement, Bank Statement, Tax Invoice, Invoice, Levy Position Report, Insurance Policy, Valuation Report, Other) MUST appear at least one row; if no file for that type, output one row with Document_Origin_Name "" or "N/A". One row per recognized file when a type has files.
 
 **CRITICAL INSTRUCTION FOR TRACEABILITY:**
 1. "verbatim_quote": For every extracted figure, you MUST provide the exact text substring from the PDF where this figure was found.
-2. "computation": For every CALCULATED figure, you MUST provide the formula logic.
+2. "computation": For every CALCULATED figure, you MUST provide the formula logic (method and expression) and in "note" the calculation content (e.g. which numbers were used).
 3. "verification_steps": For expenses, provide the step-by-step adjudication logic.
+
+**ALL SUBTOTALS AND TOTALS MUST BE CALCULATED BY YOU:** Do not leave calculated rows blank. For each of (B1) STANDARD LEVIES, (B) SUB-TOTAL (NET), (C) TOTAL GST, (D) TOTAL LEVIES RAISED, (E) Effective Levy Receipts, (=) CALC CLOSING, you must fill amount, note, and computation (method + expression). In "note" state the calculation in words; in "computation.expression" state the formula (e.g. "Old_Levy_Admin + New_Levy_Admin"). Required formulas: (B1) Admin = Old_Levy_Admin + New_Levy_Admin, (B1) Sink = Old_Levy_Sink + New_Levy_Sink, (B1) Total = Old_Levy_Total + New_Levy_Total; (B) SUB-TOTAL (NET) = (B1) + Spec_Levy_Total + Plus_Interest_Chgd - Less_Discount_Given only (exclude Plus_Legal_Recovery and Plus_Other_Recovery; those lines stay in the table for disclosure but are NOT included in (B)); (C) Total GST = GST_Admin + GST_Sink + GST_Special; (D) = (B) + (C); (E) Effective_Levy_Receipts = Total_Receipts_Global - Non_Levy_Income; (=) Calc_Closing = Net_Opening_Bal + Total_Gross_Inc - Effective_Levy_Receipts (i.e. A + D - E).
+
+**OLD RATE LEVIES / NEW RATE LEVIES (source ONLY from minutes – see Phase 2 item rules levy_old_new_levies_source, levy_old_new_rate, levy_financial_year):** Old Rate Levies and New Rate Levies must be time-apportioned by the strata plan’s financial year. First, determine the plan’s financial year (start and end dates) from minutes; anchor your search in the section that appears after the title "Audit Execution Report" and near the strata plan name (e.g. scheme name, address, or plan number). Use that FY to define quarters. Then split levies between Old Rate and New Rate by the date the new rate was adopted (from minutes). For each quarter (or part-quarter) in the FY, assign levy to Old or New by proportion (e.g. days or months in that quarter at old rate vs new rate). For every Old_Levy_* and New_Levy_* figure, you MUST fill "note" and, if calculated, "computation" explaining: FY used (source: minutes), quarter boundaries, minutes date for rate change, and the proportion applied (e.g. "Q1 100% old; Q2 60% old 40% new; FY from Report header"). source_doc_id and page_ref must cite minutes only.
 
 JSON SCHEMA:
 {
@@ -46,6 +51,8 @@ JSON SCHEMA:
        "New_Levy_Sink": { "amount": Number, "source_doc_id": "String", "page_ref": "String", "note": "String", "verbatim_quote": "String" },
        "New_Levy_Total": { "amount": Number, "source_doc_id": "String", "page_ref": "String", "note": "String", "verbatim_quote": "String" },
        "Sub_Levies_Standard": { "amount": Number, "source_doc_id": "String", "page_ref": "String", "note": "String", "computation": { "method": "String", "expression": "String" } },
+       "Sub_Levies_Standard_Admin": { "amount": Number, "source_doc_id": "String", "page_ref": "String", "note": "String", "computation": { "method": "String", "expression": "String" } },
+       "Sub_Levies_Standard_Sink": { "amount": Number, "source_doc_id": "String", "page_ref": "String", "note": "String", "computation": { "method": "String", "expression": "String" } },
        "Spec_Levy_Admin": { "amount": Number, "source_doc_id": "String", "page_ref": "String", "note": "String", "verbatim_quote": "String" },
        "Spec_Levy_Sink": { "amount": Number, "source_doc_id": "String", "page_ref": "String", "note": "String", "verbatim_quote": "String" },
        "Spec_Levy_Total": { "amount": Number, "source_doc_id": "String", "page_ref": "String", "note": "String", "verbatim_quote": "String" },

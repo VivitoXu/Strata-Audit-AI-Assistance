@@ -633,14 +633,21 @@ export const AuditReport: React.FC<AuditReportProps> = ({ data, files, triageIte
               </div>
 
               <div className="overflow-x-auto">
-                <table className="min-w-full text-right border-collapse border border-gray-200">
+                <table className="min-w-full table-fixed text-right border-collapse border border-gray-200">
+                  <colgroup>
+                    <col style={{ width: "18%" }} />
+                    <col style={{ width: "22%" }} />
+                    <col style={{ width: "22%" }} />
+                    <col style={{ width: "22%" }} />
+                    <col style={{ width: "16%" }} />
+                  </colgroup>
                   <thead className="bg-gray-100 text-black uppercase font-bold text-[15px] tracking-wider">
                     <tr>
                       <th className="px-5 py-4 text-left border-b border-gray-200">Item</th>
                       <th className="px-5 py-4 border-b border-gray-200">Admin Fund ($)</th>
                       <th className="px-5 py-4 border-b border-gray-200">Sinking Fund ($)</th>
                       <th className="px-5 py-4 border-b border-gray-200">Total ($)</th>
-                      <th className="px-5 py-4 text-left border-b border-gray-200 pl-8">Note / Source</th>
+                      <th className="px-5 py-4 text-left border-b border-gray-200 pl-4 pr-3">Note / Source</th>
                     </tr>
                   </thead>
                   <tbody className="divide-y divide-gray-100 text-[15px]">
@@ -701,38 +708,24 @@ export const AuditReport: React.FC<AuditReportProps> = ({ data, files, triageIte
                         </td>
                     </tr>
                     
-                    {/* NEW: B1 Sub-Total */}
-                    <tr className="border-b border-gray-100 font-bold bg-gray-50/30 group hover:bg-gray-50/50">
-                        <td className="px-5 py-3 text-left pl-8">(B1) STANDARD LEVIES</td>
-                        <td className="px-5 py-3">
-                            <ForensicCell 
-                                val={{
-                                    amount: data.levy_reconciliation.master_table.Old_Levy_Admin.amount + data.levy_reconciliation.master_table.New_Levy_Admin.amount,
-                                    source_doc_id: 'Calculated',
-                                    page_ref: 'Old + New',
-                                    note: data.levy_reconciliation.master_table.Sub_Levies_Standard.note
-                                }} 
-                                docs={docs} 
-                                files={files} 
-                            />
-                        </td>
-                        <td className="px-5 py-3">
-                            <ForensicCell 
-                                val={{
-                                    amount: data.levy_reconciliation.master_table.Old_Levy_Sink.amount + data.levy_reconciliation.master_table.New_Levy_Sink.amount,
-                                    source_doc_id: 'Calculated',
-                                    page_ref: 'Old + New',
-                                    note: data.levy_reconciliation.master_table.Sub_Levies_Standard.note
-                                }} 
-                                docs={docs} 
-                                files={files} 
-                            />
-                        </td>
-                        <td className="px-5 py-3"><ForensicCell val={data.levy_reconciliation.master_table.Sub_Levies_Standard} docs={docs} files={files} /></td>
-                        <td className="px-5 py-3 text-left pl-8 text-gray-400 italic text-[13px]">
-                           {withAction('sub_std', 'Standard Levies', data.levy_reconciliation.master_table.Sub_Levies_Standard.note || 'Old + New')}
-                        </td>
-                    </tr>
+                    {/* B1 Sub-Total: 全部由 AI 输出，无 UI 计算；缺省时仅展示占位 */}
+                    {(() => {
+                      const mt = data.levy_reconciliation.master_table;
+                      const emptyCell = { amount: 0, source_doc_id: '-', page_ref: '-', note: '—' as string };
+                      const b1Admin = mt.Sub_Levies_Standard_Admin ?? emptyCell;
+                      const b1Sink = mt.Sub_Levies_Standard_Sink ?? emptyCell;
+                      return (
+                        <tr className="border-b border-gray-100 font-bold bg-gray-50/30 group hover:bg-gray-50/50">
+                          <td className="px-5 py-3 text-left pl-8">(B1) STANDARD LEVIES</td>
+                          <td className="px-5 py-3"><ForensicCell val={b1Admin} docs={docs} files={files} /></td>
+                          <td className="px-5 py-3"><ForensicCell val={b1Sink} docs={docs} files={files} /></td>
+                          <td className="px-5 py-3"><ForensicCell val={mt.Sub_Levies_Standard} docs={docs} files={files} /></td>
+                          <td className="px-5 py-3 text-left pl-8 text-gray-400 italic text-[13px]">
+                            {withAction('sub_std', 'Standard Levies', mt.Sub_Levies_Standard.note || '—')}
+                          </td>
+                        </tr>
+                      );
+                    })()}
 
                     {/* NEW: Adjustments / Other Income */}
                     <tr className="group hover:bg-gray-50">
