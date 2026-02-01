@@ -41,10 +41,10 @@ export const FileUpload: React.FC<FileUploadProps> = ({ onFilesSelected, selecte
                 d="M13 13h3a3 3 0 0 0 0-6h-.025A5.56 5.56 0 0 0 16 6.5 5.5 5.5 0 0 0 5.207 5.021C5.137 5.017 5.071 5 5 5a4 4 0 0 0 0 8h2.167M10 15V6m0 0L8 8m2-2 2 2"
               />
             </svg>
-            <p className="mb-2 text-sm text-gray-600 font-medium">
-              <span className="font-bold text-[#C5A059]">CLICK TO UPLOAD</span> EVIDENCE
+            <p className="mb-2 text-xs text-gray-600 font-bold uppercase tracking-wider">
+              <span className="text-[#C5A059]">CLICK TO UPLOAD</span> EVIDENCE
             </p>
-            <p className="text-xs text-gray-400 uppercase tracking-wider">PDF, XLSX, CSV (Max 10MB)</p>
+            <p className="text-[10px] text-gray-400 uppercase tracking-widest">PDF, XLSX, CSV (Max 10MB)</p>
           </div>
           <input
             id="dropzone-file"
@@ -68,7 +68,7 @@ export const FileUpload: React.FC<FileUploadProps> = ({ onFilesSelected, selecte
                 <span className="text-[10px] bg-[#C5A059] text-black px-1.5 py-0.5 font-bold uppercase tracking-widest rounded-sm">
                   {file.name.split('.').pop()?.toUpperCase()}
                 </span>
-                <span className="text-sm text-gray-800 font-medium truncate">{file.name}</span>
+                <span className="text-xs text-gray-800 font-medium truncate">{file.name}</span>
               </div>
               <button
                 onClick={() => removeFile(index)}

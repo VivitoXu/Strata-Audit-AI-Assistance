@@ -168,12 +168,12 @@ export const PHASE_2_TOTAL_RECEIPTS_RULES_PROMPT = `
 --- PHASE 2 – TOTAL RECEIPTS (GLOBAL) – MANDATORY (ADMIN & CAPITAL ACTUAL PAYMENTS) ---
 RULE SET (ENFORCE): Total_Receipts_Global and Effective_Levy_Receipts MUST be sourced by actively finding **two** receipt/payment summaries for the audit FY: (1) **Administrative Fund** receipts for the year, (2) **Capital / Sinking Fund** receipts for the year. Non-compliance → Not Resolved – Boundary Defined.
 
-**Definition:** Total Receipts (Global) = total levy-related cash receipts received during the audit FY, across Administrative Fund and Capital / Sinking Fund. Effective_Levy_Receipts = Total_Receipts_Global (when sourced via Admin & Capital Actual Payments; these report types are levy/contribution focused).
+**Definition:** Output **Admin_Fund_Receipts** and **Capital_Fund_Receipts** as separate TraceableValue fields. Total_Receipts_Global = Admin_Fund_Receipts.amount + Capital_Fund_Receipts.amount. Effective_Levy_Receipts = Total_Receipts_Global. Do NOT output or use Non_Levy_Income.
 
 **Admin & Capital Actual Payments approach (PRIMARY – REQUIRED):**
-- **Admin Fund:** Actively search for an **Administrative Fund** receipt or payment summary (or levy/contribution summary) for the audit financial year (intake_summary.financial_year). The report MUST be identifiable as Admin Fund (by title, section, or fund column).
-- **Capital / Sinking Fund:** Actively search for a **Capital / Sinking Fund** receipt or payment summary (or levy/contribution summary) for the same FY. The report MUST be identifiable as Capital or Sinking Fund.
-- **Combined:** Total_Receipts_Global = Admin Fund receipts total + Capital/Sinking Fund receipts total. Effective_Levy_Receipts = Total_Receipts_Global. Non_Levy_Income = 0.00 when using this method (no need to hunt for "non-levy" as a separate concept).
+- **Admin Fund:** Actively search for an **Administrative Fund** receipt or payment summary (or levy/contribution summary) for the audit financial year (intake_summary.financial_year). The report MUST be identifiable as Admin Fund (by title, section, or fund column). Output the total as **Admin_Fund_Receipts** (TraceableValue with source_doc_id, page_ref, note, verbatim_quote).
+- **Capital / Sinking Fund:** Actively search for a **Capital / Sinking Fund** receipt or payment summary (or levy/contribution summary) for the same FY. The report MUST be identifiable as Capital or Sinking Fund. Output the total as **Capital_Fund_Receipts** (TraceableValue).
+- **Combined:** Total_Receipts_Global = Admin_Fund_Receipts.amount + Capital_Fund_Receipts.amount. Effective_Levy_Receipts = Total_Receipts_Global.
 
 **Acceptable report types (whitelist – use document_register names or equivalent):**
 ${PHASE_2_RECEIPTS_REPORT_WHITELIST.join("\n• ")}
@@ -182,7 +182,7 @@ ${PHASE_2_RECEIPTS_REPORT_WHITELIST.join("\n• ")}
 - Requirements: Must cover the audit FY; must segregate or be clearly attributable to Admin vs Capital/Sinking Fund.
 
 **Fallback (if Admin & Capital separate fund reports are not available):**
-- If evidence contains a **single combined** cash-based receipt summary (e.g. Cash Management Report, Trust Account Receipts Report, Cash Receipts Summary) that already segregates Admin and Capital receipts for the FY, you MAY use that: Total_Receipts_Global = Admin Receipts + Capital Receipts from that report. If that combined source also identifies non-levy income (interest, insurance, cert fees, sundry), then Non_Levy_Income = that amount; Effective_Levy_Receipts = Total_Receipts_Global - Non_Levy_Income. Otherwise Non_Levy_Income = 0; Effective_Levy_Receipts = Total_Receipts_Global.
+- If evidence contains a **single combined** cash-based receipt summary that segregates Admin and Capital receipts for the FY, extract each fund total separately into **Admin_Fund_Receipts** and **Capital_Fund_Receipts**; then Total_Receipts_Global = sum; Effective_Levy_Receipts = Total_Receipts_Global.
 
 **Prohibited Evidence (HARD STOP):**
 - General Ledger alone; Trial Balance alone; Financial Statements or Notes (alone); management summaries without receipt/collection-level backing. If neither (1) Admin & Capital fund-specific receipt summaries from the whitelist nor (2) a single combined Tier 1 cash-based receipt summary exists, mark as Not Resolved – Boundary Defined.

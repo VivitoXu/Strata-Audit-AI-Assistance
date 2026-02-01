@@ -68,8 +68,10 @@ export const LevyRecMasterSchema = z.object({
   GST_Special: TraceableValueSchema,
   Total_GST_Raised: TraceableValueSchema,
   Total_Gross_Inc: TraceableValueSchema,
+  Admin_Fund_Receipts: TraceableValueSchema,
+  Capital_Fund_Receipts: TraceableValueSchema,
   Total_Receipts_Global: TraceableValueSchema,
-  Non_Levy_Income: TraceableValueSchema,
+  Non_Levy_Income: TraceableValueSchema.optional(),
   Effective_Levy_Receipts: TraceableValueSchema,
   Calc_Closing: TraceableValueSchema,
   BS_Arrears: TraceableValueSchema,
@@ -114,11 +116,13 @@ const ExpenseSampleSchema = z.object({
   verification_steps: z.array(VerificationStepSchema).optional(),
 });
 
+/** Phase 4: bs_amount = from Financial Statement Balance Sheet only; supporting_amount = from R2–R5 evidence only (Bank Stmt, Levy Report, breakdown, GL). year_column = MANDATORY column label from bs_column_mapping to ensure correct year. */
 const BalanceSheetVerificationItemSchema = z.object({
   line_item: z.string(),
   section: z.enum(["OWNERS_EQUITY", "ASSETS", "LIABILITIES"]).optional(),
   fund: z.string().optional(),
   bs_amount: z.number(),
+  year_column: z.string(), // MANDATORY: Column label (e.g. "2024", "Current Year") from bs_column_mapping.current_year_label
   supporting_amount: z.number(),
   evidence_ref: z.string(),
   status: z.enum([
@@ -129,6 +133,7 @@ const BalanceSheetVerificationItemSchema = z.object({
     "MISSING_LEVY_REPORT",
     "MISSING_BREAKDOWN",
     "NO_SUPPORT",
+    "GL_SUPPORTED_ONLY",
   ]),
   note: z.string().optional(),
 });

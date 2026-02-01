@@ -818,7 +818,7 @@ const App: React.FC = () => {
                     <input
                       value={activePlan.name}
                       onChange={(e) => updatePlan(activePlan.id, { name: e.target.value })}
-                      className="text-2xl font-bold text-black bg-transparent border-b-2 border-transparent hover:border-gray-300 focus:border-[#C5A059] focus:outline-none px-1 py-0.5 -ml-1"
+                      className="text-3xl font-bold text-black tracking-tight bg-transparent border-b-2 border-transparent hover:border-gray-300 focus:border-[#C5A059] focus:outline-none px-1 py-0.5 -ml-1"
                     />
                     {activePlan.result?.intake_summary?.status && (
                       <span className="text-xs font-mono text-gray-500 bg-gray-100 px-2 py-1 rounded shrink-0">
@@ -826,31 +826,40 @@ const App: React.FC = () => {
                       </span>
                     )}
                  </div>
-                 {getNextStep(activePlan) !== "done" && (
-                   <button
-                     onClick={() => handleNextStep(activePlan.id)}
-                     disabled={!firebaseUser || activePlan.files.length === 0 || activePlan.status === "processing" || (getNextStep(activePlan) === "call2" && !activePlan.result?.document_register?.length)}
-                     className={`shrink-0 px-6 py-3 font-bold text-[13px] uppercase tracking-widest rounded-sm border-2 transition-all focus:outline-none ${
-                       !firebaseUser || activePlan.files.length === 0 || activePlan.status === "processing" || (getNextStep(activePlan) === "call2" && !activePlan.result?.document_register?.length)
-                         ? "bg-gray-100 border-gray-200 text-gray-400 cursor-not-allowed"
-                         : "bg-[#C5A059] border-[#C5A059] text-black hover:bg-[#A08040] hover:border-[#A08040]"
-                     }`}
-                   >
-                     Next Step
-                   </button>
-                 )}
+                 {/* Next Step 常驻，为 wrap up / 新增 evidence 后 re-run 预留 */}
+                 <button
+                   onClick={() => handleNextStep(activePlan.id)}
+                   disabled={
+                     !firebaseUser ||
+                     activePlan.files.length === 0 ||
+                     activePlan.status === "processing" ||
+                     (getNextStep(activePlan) === "call2" && !activePlan.result?.document_register?.length) ||
+                     getNextStep(activePlan) === "done"
+                   }
+                   className={`shrink-0 px-6 py-3 font-bold text-xs uppercase tracking-widest rounded-sm border-2 transition-all focus:outline-none ${
+                     !firebaseUser ||
+                     activePlan.files.length === 0 ||
+                     activePlan.status === "processing" ||
+                     (getNextStep(activePlan) === "call2" && !activePlan.result?.document_register?.length) ||
+                     getNextStep(activePlan) === "done"
+                       ? "bg-gray-100 border-gray-200 text-gray-400 cursor-not-allowed"
+                       : "bg-[#C5A059] border-[#C5A059] text-black hover:bg-[#A08040] hover:border-[#A08040]"
+                   }`}
+                 >
+                   Next Step
+                 </button>
               </div>
 
               {/* Error banner */}
               {activePlan.status === "failed" && activePlan.error && (
-                <div className="mt-4 p-4 bg-red-50 border border-red-200 rounded text-red-800 text-sm">
+                <div className="mt-4 p-4 bg-red-50 border border-red-200 rounded text-red-800 text-xs">
                   {activePlan.error}
                 </div>
               )}
 
               {/* Files section (collapsible) */}
               <details className="mt-6 shrink-0" open>
-                <summary className="cursor-pointer text-sm font-bold text-gray-600 uppercase tracking-wider flex items-center gap-2">
+                <summary className="cursor-pointer text-xs font-bold text-gray-600 uppercase tracking-widest flex items-center gap-2">
                   <span>Evidence Files ({activePlan.files.length})</span>
                 </summary>
                 <div className="mt-4 p-4 bg-white rounded border border-gray-200">
@@ -875,8 +884,8 @@ const App: React.FC = () => {
                     <svg className="w-16 h-16 mb-4 opacity-40" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                       <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M9 12h6m-6 4h6m2 5H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z" />
                     </svg>
-                    <p className="text-sm font-semibold uppercase tracking-wider">No report yet</p>
-                    <p className="text-xs mt-1">Upload files above, then click Next Step to run.</p>
+                    <p className="text-xs font-bold uppercase tracking-widest">No report yet</p>
+                    <p className="text-xs mt-1 text-gray-500">Upload files above, then click Next Step to run.</p>
                   </div>
                 )}
               </div>
@@ -927,17 +936,17 @@ const App: React.FC = () => {
             </div>
             <div className="p-8 overflow-y-auto bg-gray-50 space-y-6">
               <div>
-                <label className="block text-xs font-bold text-gray-500 uppercase tracking-wider mb-2">Plan Name</label>
+                <label className="block text-xs font-bold text-gray-400 uppercase tracking-wide mb-2">Plan Name</label>
                 <input
                   type="text"
                   value={createDraft.name}
                   onChange={(e) => setCreateDraft((d) => ({ ...d, name: e.target.value }))}
                   placeholder={createDraft.files[0]?.name.split('.')[0] || "e.g. SP 12345 Audit"}
-                  className="w-full px-4 py-3 border border-gray-300 rounded text-[14px] focus:border-[#C5A059] focus:outline-none"
+                  className="w-full px-4 py-3 border border-gray-300 rounded text-sm focus:border-[#C5A059] focus:outline-none"
                 />
               </div>
               <div>
-                <label className="block text-xs font-bold text-gray-500 uppercase tracking-wider mb-2">Evidence Files</label>
+                <label className="block text-xs font-bold text-gray-400 uppercase tracking-wide mb-2">Evidence Files</label>
                 <FileUpload
                   onFilesSelected={(files) => setCreateDraft((d) => ({ ...d, files }))}
                   selectedFiles={createDraft.files}
@@ -954,7 +963,7 @@ const App: React.FC = () => {
               <button
                 onClick={handleCreatePlanConfirm}
                 disabled={!firebaseUser || createDraft.files.length === 0}
-                className="px-8 py-3 font-bold text-[13px] uppercase tracking-widest rounded-sm bg-[#C5A059] text-black hover:bg-[#A08040] disabled:opacity-50 disabled:cursor-not-allowed transition-colors"
+                className="px-8 py-3 font-bold text-xs uppercase tracking-widest rounded-sm bg-[#C5A059] text-black hover:bg-[#A08040] disabled:opacity-50 disabled:cursor-not-allowed transition-colors"
               >
                 Create & Open
               </button>

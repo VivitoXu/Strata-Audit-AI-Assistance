@@ -988,14 +988,14 @@ export const AuditReport: React.FC<AuditReportProps> = ({ data, files, triageIte
                         </td>
                     </tr>
 
-                     {/* TOTALS */}
+                     {/* TOTALS – (D) = period-only gross, not including (A); reconciliation adds A+D-E in closing row */}
                     <tr className="bg-yellow-50/50 border-y border-gray-200 group hover:bg-yellow-50">
-                      <td className="px-5 py-4 text-left font-bold text-black">(D) TOTAL LEVIES RAISED</td>
+                      <td className="px-5 py-4 text-left font-bold text-black">(D) TOTAL LEVIES & GST RAISED (PERIOD)</td>
                       <td></td>
                       <td></td>
                       <td className="px-5 py-4 font-bold text-black"><ForensicCell val={data.levy_reconciliation.master_table.Total_Gross_Inc} docs={docs} files={files} /></td>
                       <td className="px-5 py-4 text-left pl-8 text-gray-500 font-bold text-[13px]">
-                         {withAction('tot_gross', 'Total Gross', '(B) + (C)')}
+                         {withAction('tot_gross', 'Total Gross', '(B) + (C) only; (A) added in Calc Closing = A + D - E')}
                       </td>
                     </tr>
 
@@ -1013,14 +1013,14 @@ export const AuditReport: React.FC<AuditReportProps> = ({ data, files, triageIte
                         <td></td>
                     </tr>
                     <tr className="group hover:bg-gray-50">
-                        <td className="px-5 py-3 text-left pl-8 text-gray-600">(+) (D) Total Raised</td>
+                        <td className="px-5 py-3 text-left pl-8 text-gray-600">(+) (D) Total Levies & GST Raised (Period)</td>
                         <td></td>
                         <td></td>
                         <td className="px-5 py-3 font-medium"><ForensicCell val={data.levy_reconciliation.master_table.Total_Gross_Inc} docs={docs} files={files} /></td>
-                        <td></td>
+                        <td className="px-5 py-3 text-left pl-8 text-gray-400 text-[12px]">(B)+(C); A added below</td>
                     </tr>
                     
-                    {/* NEW SECTION: LESS RECEIPTS BREAKDOWN */}
+                    {/* Less: RECEIPTS – Admin receipts + Capital receipts; (E) = sum; no Non-Levy Income */}
                     <tr className="border-t border-gray-200">
                         <td className="px-5 py-3 text-left pl-8 font-bold text-gray-700">Less: RECEIPTS</td>
                         <td></td>
@@ -1028,31 +1028,45 @@ export const AuditReport: React.FC<AuditReportProps> = ({ data, files, triageIte
                         <td></td>
                         <td></td>
                     </tr>
-                    <tr className="group hover:bg-gray-50">
-                        <td className="px-5 py-2 text-left pl-12 text-gray-600">Total Receipts (Global)</td>
-                        <td></td>
-                        <td></td>
-                        <td className="px-5 py-2 text-right"><ForensicCell val={data.levy_reconciliation.master_table.Total_Receipts_Global} docs={docs} files={files} /></td>
-                        <td className="px-5 py-2 text-left pl-8 text-gray-400 italic text-[13px]">
-                           {withAction('tot_rec', 'Total Receipts', data.levy_reconciliation.master_table.Total_Receipts_Global.note || 'Bank/GL Total')}
-                        </td>
-                    </tr>
-                    <tr className="group hover:bg-gray-50">
-                        <td className="px-5 py-2 text-left pl-12 text-gray-600">(-) Non-Levy Income</td>
-                        <td></td>
-                        <td></td>
-                        <td className="px-5 py-2 text-right text-red-700">(<ForensicCell val={data.levy_reconciliation.master_table.Non_Levy_Income} docs={docs} files={files} />)</td>
-                        <td className="px-5 py-2 text-left pl-8 text-gray-400 italic text-[13px]">
-                           {withAction('non_levy', 'Non-Levy Income', data.levy_reconciliation.master_table.Non_Levy_Income.note || 'Ins/Utility/Cert')}
-                        </td>
-                    </tr>
+                    {data.levy_reconciliation.master_table.Admin_Fund_Receipts && data.levy_reconciliation.master_table.Capital_Fund_Receipts ? (
+                      <>
+                        <tr className="group hover:bg-gray-50">
+                            <td className="px-5 py-2 text-left pl-12 text-gray-600">Admin receipts</td>
+                            <td></td>
+                            <td></td>
+                            <td className="px-5 py-2 text-right"><ForensicCell val={data.levy_reconciliation.master_table.Admin_Fund_Receipts} docs={docs} files={files} /></td>
+                            <td className="px-5 py-2 text-left pl-8 text-gray-400 italic text-[13px]">
+                               {withAction('admin_rec', 'Admin Receipts', data.levy_reconciliation.master_table.Admin_Fund_Receipts.note || 'Administrative Fund receipts')}
+                            </td>
+                        </tr>
+                        <tr className="group hover:bg-gray-50">
+                            <td className="px-5 py-2 text-left pl-12 text-gray-600">Capital receipts</td>
+                            <td></td>
+                            <td></td>
+                            <td className="px-5 py-2 text-right"><ForensicCell val={data.levy_reconciliation.master_table.Capital_Fund_Receipts} docs={docs} files={files} /></td>
+                            <td className="px-5 py-2 text-left pl-8 text-gray-400 italic text-[13px]">
+                               {withAction('cap_rec', 'Capital Receipts', data.levy_reconciliation.master_table.Capital_Fund_Receipts.note || 'Capital / Sinking Fund receipts')}
+                            </td>
+                        </tr>
+                      </>
+                    ) : (
+                      <tr className="group hover:bg-gray-50">
+                          <td className="px-5 py-2 text-left pl-12 text-gray-600">Admin + Capital Receipts</td>
+                          <td></td>
+                          <td></td>
+                          <td className="px-5 py-2 text-right"><ForensicCell val={data.levy_reconciliation.master_table.Total_Receipts_Global} docs={docs} files={files} /></td>
+                          <td className="px-5 py-2 text-left pl-8 text-gray-400 italic text-[13px]">
+                             {withAction('tot_rec', 'Admin + Capital Receipts', data.levy_reconciliation.master_table.Total_Receipts_Global?.note || 'Legacy: run fresh audit for Admin / Capital split')}
+                          </td>
+                      </tr>
+                    )}
                      <tr className="border-b border-gray-100 group hover:bg-gray-50">
-                        <td className="px-5 py-3 text-left pl-12 font-medium italic text-gray-800">Subtotal (E) / Eff. Levy Receipts</td>
+                        <td className="px-5 py-3 text-left pl-12 font-medium italic text-gray-800">(E) Effective Levy Receipts</td>
                         <td></td>
                         <td></td>
                         <td className="px-5 py-3 font-medium border-t border-gray-300"><ForensicCell val={data.levy_reconciliation.master_table.Effective_Levy_Receipts} docs={docs} files={files} /></td>
                         <td className="px-5 py-3 text-left pl-8 text-gray-400 italic text-[13px]">
-                           {withAction('eff_rec', 'Effective Receipts', data.levy_reconciliation.master_table.Effective_Levy_Receipts.note || 'Net Levy Cash')}
+                           {withAction('eff_rec', 'Effective Receipts', data.levy_reconciliation.master_table.Effective_Levy_Receipts.note || 'Admin + Capital total')}
                         </td>
                     </tr>
 
@@ -1125,6 +1139,7 @@ export const AuditReport: React.FC<AuditReportProps> = ({ data, files, triageIte
                     <div className="border-b-2 border-[#C5A059] pb-3 mb-6">
                         <h3 className="text-[16px] font-bold text-black uppercase tracking-wide">Table C.3: Full Balance Sheet Verification (Phase 4 GATE 2)</h3>
                         <p className="text-xs text-gray-500 mt-1 uppercase tracking-wide">Owners Equity, Assets, Liabilities – line-by-line verification per ASSET_VERIFICATION_RULES. Current Year column only.</p>
+                        <p className="text-[11px] text-gray-400 mt-2 italic">BS Amount ($) = from Financial Statement Balance Sheet only; Supporting ($) = from R2–R5 evidence only (Bank Stmt, Levy Report, breakdown, GL).</p>
                     </div>
                     {data?.assets_and_cash?.balance_sheet_verification && data.assets_and_cash.balance_sheet_verification.length > 0 ? (
                         <div className="overflow-x-auto w-full">
@@ -1174,7 +1189,12 @@ export const AuditReport: React.FC<AuditReportProps> = ({ data, files, triageIte
                                                 const evParts = evRef.split(/[/,]/);
                                                 const srcId = evParts[0]?.trim() || '-';
                                                 const pageRef = evParts[1]?.trim() || evRef;
-                                                const bsTrace: TraceableValue = { amount: item.bs_amount ?? 0, source_doc_id: srcId, page_ref: pageRef, note: item.note || '' };
+                                                // BS Amount: source is Balance Sheet only – use Step 0 core_data_positions.balance_sheet + year_column when available
+                                                const bsDoc = safeData.core_data_positions?.balance_sheet;
+                                                const yearColumnLabel = item.year_column || safeData.bs_column_mapping?.current_year_label || 'Current Year column';
+                                                const bsTrace: TraceableValue = bsDoc
+                                                    ? { amount: item.bs_amount ?? 0, source_doc_id: bsDoc.doc_id, page_ref: `${bsDoc.page_range} › ${yearColumnLabel}`, note: item.note || `From BS column '${yearColumnLabel}'` }
+                                                    : { amount: item.bs_amount ?? 0, source_doc_id: 'Balance Sheet (FS)', page_ref: yearColumnLabel, note: item.note || `From BS column '${yearColumnLabel}'` };
                                                 const supTrace: TraceableValue = { amount: item.supporting_amount ?? 0, source_doc_id: srcId, page_ref: pageRef, note: item.note || '' };
                                                 const noteContent = item.note || item.evidence_ref || '–';
                                                 rows.push(

@@ -51,6 +51,9 @@ INSTRUCTIONS:
 2. Use core_data_positions for document/page locations. Use intake_summary.financial_year as global FY.
 3. Execute ${mode === "levy" ? "Phase 2 (Levy Reconciliation)" : mode === "phase4" ? "Phase 4 (Balance Sheet Verification)" : "Phase 3 (Expenses Vouching)"} ONLY.
 4. Return ONLY ${mode === "levy" ? "\"levy_reconciliation\"" : mode === "phase4" ? "\"assets_and_cash\"" : "\"expense_samples\""}. No other keys.
+${mode === "phase4" ? `
+5. [Phase 4 ONLY] Use LOCKED step0 core_data_positions.balance_sheet and bs_column_mapping to locate the Balance Sheet and Current Year column; use bs_structure as the mandatory list of rows. Copy bs_amount and line_item ONLY from that FS Balance Sheet (Current Year). supporting_amount ONLY from non-BS evidence per R2–R5. PROHIBITED: Balance Sheet as source for supporting_amount; GL/ledger as source for bs_amount.
+` : ""}
 ` :
     previousAudit && !isStep0Only ?
     `

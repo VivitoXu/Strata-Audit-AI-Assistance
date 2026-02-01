@@ -101,8 +101,14 @@ export interface LevyRecMaster {
   GST_Special: TraceableValue;
   Total_GST_Raised: TraceableValue;
   Total_Gross_Inc: TraceableValue;
+  /** Administrative Fund receipts for the audit FY (Admin & Capital Actual Payments method) */
+  Admin_Fund_Receipts: TraceableValue;
+  /** Capital / Sinking Fund receipts for the audit FY (Admin & Capital Actual Payments method) */
+  Capital_Fund_Receipts: TraceableValue;
+  /** Sum of Admin + Capital fund receipts; Effective_Levy_Receipts = this total */
   Total_Receipts_Global: TraceableValue;
-  Non_Levy_Income: TraceableValue;
+  /** @deprecated Not used when Admin & Capital method; kept for backward compatibility */
+  Non_Levy_Income?: TraceableValue;
   Effective_Levy_Receipts: TraceableValue;
   Calc_Closing: TraceableValue;
   BS_Arrears: TraceableValue;
@@ -131,11 +137,13 @@ export interface BalanceSheetVerificationItem {
   section?: "OWNERS_EQUITY" | "ASSETS" | "LIABILITIES";
   fund?: string;
   bs_amount: number;
+  /** MANDATORY: Column label from bs_column_mapping (e.g. "2024", "Current Year") – ensures bs_amount is from correct year */
+  year_column: string;
   supporting_amount: number;
   /** Doc_ID/Page for traceability (e.g. "Sys_001/Page 2") */
   evidence_ref: string;
-  status: "VERIFIED" | "VARIANCE" | "MISSING_BANK_STMT" | "TIER_3_ONLY" | "MISSING_LEVY_REPORT" | "MISSING_BREAKDOWN" | "NO_SUPPORT";
-  /** AI explanation holder (same as Table E.Master Note/Source) – human-readable source context e.g. "Bank Statement p.2 as at FY end", "Current Year BS column" */
+  status: "VERIFIED" | "VARIANCE" | "MISSING_BANK_STMT" | "TIER_3_ONLY" | "MISSING_LEVY_REPORT" | "MISSING_BREAKDOWN" | "NO_SUPPORT" | "GL_SUPPORTED_ONLY";
+  /** AI explanation holder (same as Table E.Master Note/Source) – human-readable source context e.g. "Bank Statement p.2 as at FY end", "From BS column '2024'" */
   note?: string;
 }
 
