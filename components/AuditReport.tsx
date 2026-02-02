@@ -1,6 +1,7 @@
 
 
 import React, { useState, useRef, useEffect } from 'react';
+import { createPortal } from 'react-dom';
 import {
   AuditResponse,
   TraceableValue,
@@ -10,6 +11,8 @@ import {
   CoreDataPositions,
   BsColumnMapping,
   BsStructureItem,
+  BsExtract,
+  BsExtractRow,
   ExpenseSample,
 } from '../types';
 
@@ -576,6 +579,12 @@ const TriageModal: React.FC<{
    const [comment, setComment] = useState(initialData?.comment || '');
    const [severity, setSeverity] = useState<'low' | 'medium' | 'critical'>(initialData?.severity || 'medium');
 
+   useEffect(() => {
+      const prev = document.body.style.overflow;
+      document.body.style.overflow = 'hidden';
+      return () => { document.body.style.overflow = prev; };
+   }, []);
+
    return (
       <div className="fixed inset-0 z-[10000] bg-black/50 backdrop-blur-sm flex items-center justify-center p-4 animate-fade-in" onClick={onClose}>
          <div className="bg-white w-full max-w-md rounded shadow-2xl overflow-hidden" onClick={e => e.stopPropagation()}>
@@ -674,7 +683,7 @@ const RowAction: React.FC<{
                </button>
             )}
          </div>
-         {isModalOpen && (
+         {isModalOpen && createPortal(
             <TriageModal 
                initialData={existingFlag}
                rowId={rowId}
@@ -685,7 +694,8 @@ const RowAction: React.FC<{
                   onFlag(item);
                   setIsModalOpen(false);
                }}
-            />
+            />,
+            document.body
          )}
       </>
    );
@@ -719,6 +729,8 @@ const StatusBadge: React.FC<{ status: string; onClick?: () => void }> = ({ statu
     colorClass = 'bg-green-50 text-green-800 border-green-100';
   } else if (s.includes('missing') || s.includes('required') || s.includes('tier_3') || s.includes('no_support') || s.includes('breakdown')) {
     colorClass = 'bg-yellow-50 text-yellow-800 border-yellow-100';
+  } else if (s.includes('subtotal_check')) {
+    colorClass = 'bg-blue-50 text-blue-800 border-blue-100';
   }
 
   return (
@@ -956,86 +968,77 @@ export const AuditReport: React.FC<AuditReportProps> = ({ data, files, triageIte
                 )}
               </div>
 
-              {/* BS Column Mapping */}
+              {/* Balance Sheet Extract (single source of truth for Phase 2/4/5) */}
               <div className="mt-10 pt-8 border-t border-gray-200">
                 <div className="border-b-2 border-[#C5A059] pb-3 mb-6">
                   <h4 className="text-[14px] font-bold text-black uppercase tracking-wide">
-                    BS Column Mapping
+                    Balance Sheet Extract
                   </h4>
                   <p className="text-[12px] text-gray-500 mt-1">
-                    Prior Year / Current Year column labels for column anchoring
+                    Full BS export – single source of truth for Phase 2 (Levy) and Phase 4 (BS Verification)
                   </p>
                 </div>
-                {safeData.bs_column_mapping ? (
-                  <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
-                    <div className="p-4 bg-[#C5A059]/10 border border-[#C5A059]/30 rounded">
-                      <div className="text-[11px] text-[#C5A059] uppercase font-bold tracking-widest mb-2">
-                        Current Year
+                {safeData.bs_extract && Array.isArray(safeData.bs_extract.rows) && safeData.bs_extract.rows.length > 0 ? (
+                  <>
+                    <div className="grid grid-cols-1 md:grid-cols-2 gap-4 mb-4">
+                      <div className="p-3 bg-[#C5A059]/10 border border-[#C5A059]/30 rounded">
+                        <span className="text-[11px] text-[#C5A059] uppercase font-bold">Current Year</span>
+                        <div className="text-[14px] font-bold font-mono">{safeData.bs_extract.current_year_label || '–'}</div>
                       </div>
-                      <div className="text-[15px] font-bold text-black font-mono">
-                        {safeData.bs_column_mapping.current_year_label || '–'}
-                      </div>
-                    </div>
-                    <div className="p-4 bg-gray-50 border border-gray-200 rounded">
-                      <div className="text-[11px] text-gray-500 uppercase font-bold tracking-widest mb-2">
-                        Prior Year
-                      </div>
-                      <div className="text-[15px] font-bold text-black font-mono">
-                        {safeData.bs_column_mapping.prior_year_label || '–'}
+                      <div className="p-3 bg-gray-50 border border-gray-200 rounded">
+                        <span className="text-[11px] text-gray-500 uppercase font-bold">Prior Year</span>
+                        <div className="text-[14px] font-bold font-mono">{safeData.bs_extract.prior_year_label || '–'}</div>
                       </div>
                     </div>
-                  </div>
-                ) : (
-                  <div className="p-6 bg-gray-50 border border-gray-100 rounded text-center text-gray-500 text-[13px] italic">
-                    Run Step 0 only to extract BS column mapping.
-                  </div>
-                )}
-              </div>
-
-              {/* BS Structure */}
-              <div className="mt-10 pt-8 border-t border-gray-200">
-                <div className="border-b-2 border-[#C5A059] pb-3 mb-6">
-                  <h4 className="text-[14px] font-bold text-black uppercase tracking-wide">
-                    Balance Sheet Structure
-                  </h4>
-                  <p className="text-[12px] text-gray-500 mt-1">
-                    Line items on the Balance Sheet (for Phase 4 completeness)
-                  </p>
-                </div>
-                {safeData.bs_structure && Array.isArray(safeData.bs_structure) && safeData.bs_structure.length > 0 ? (
-                  <div className="overflow-x-auto">
-                    <table className="min-w-full text-left border border-gray-200">
-                      <thead className="bg-gray-100 text-black uppercase font-bold text-[12px] tracking-wider">
-                        <tr>
-                          <th className="px-4 py-3 border-b border-gray-200">#</th>
-                          <th className="px-4 py-3 border-b border-gray-200">Line Item</th>
-                          <th className="px-4 py-3 border-b border-gray-200">Section</th>
-                          <th className="px-4 py-3 border-b border-gray-200">Fund</th>
-                        </tr>
-                      </thead>
-                      <tbody className="divide-y divide-gray-100 text-[14px]">
-                        {(safeData.bs_structure as BsStructureItem[]).map((row, i) => (
-                          <tr key={i} className="bg-white hover:bg-gray-50 transition-colors">
-                            <td className="px-4 py-3 text-gray-500">{i + 1}</td>
-                            <td className="px-4 py-3 font-medium text-gray-900">{row.line_item}</td>
-                            <td className="px-4 py-3">
-                              <span className={`px-2 py-0.5 text-[11px] font-bold uppercase ${
-                                row.section === 'OWNERS_EQUITY' ? 'bg-amber-50 text-amber-800' :
-                                row.section === 'ASSETS' ? 'bg-green-50 text-green-800' :
-                                'bg-blue-50 text-blue-800'
-                              }`}>
-                                {row.section}
-                              </span>
-                            </td>
-                            <td className="px-4 py-3 text-gray-600">{row.fund || 'N/A'}</td>
+                    <div className="overflow-x-auto">
+                      <table className="min-w-full text-left border border-gray-200">
+                        <thead className="bg-gray-100 text-black uppercase font-bold text-[11px] tracking-wider">
+                          <tr>
+                            <th className="px-3 py-2 border-b border-gray-200">#</th>
+                            <th className="px-3 py-2 border-b border-gray-200">Line Item</th>
+                            <th className="px-3 py-2 border-b border-gray-200">Section</th>
+                            <th className="px-3 py-2 border-b border-gray-200">Fund</th>
+                            <th className="px-3 py-2 border-b border-gray-200 text-right">Current Year ($)</th>
+                            <th className="px-3 py-2 border-b border-gray-200 text-right">Prior Year ($)</th>
                           </tr>
-                        ))}
-                      </tbody>
-                    </table>
+                        </thead>
+                        <tbody className="divide-y divide-gray-100 text-[13px]">
+                          {(safeData.bs_extract.rows as BsExtractRow[]).map((row, i) => {
+                            const bsDoc = safeData.core_data_positions?.balance_sheet;
+                            const currTrace: TraceableValue = bsDoc
+                              ? { amount: row.current_year ?? 0, source_doc_id: bsDoc.doc_id, page_ref: `${bsDoc.page_range} › ${safeData.bs_extract?.current_year_label || 'Current'}`, note: `From bs_extract current_year (${row.line_item})` }
+                              : { amount: row.current_year ?? 0, source_doc_id: 'Balance Sheet (FS)', page_ref: safeData.bs_extract?.current_year_label || 'Current', note: `From bs_extract current_year` };
+                            const priorTrace: TraceableValue = bsDoc
+                              ? { amount: row.prior_year ?? 0, source_doc_id: bsDoc.doc_id, page_ref: `${bsDoc.page_range} › ${safeData.bs_extract?.prior_year_label || 'Prior'}`, note: `From bs_extract prior_year (${row.line_item})` }
+                              : { amount: row.prior_year ?? 0, source_doc_id: 'Balance Sheet (FS)', page_ref: safeData.bs_extract?.prior_year_label || 'Prior', note: `From bs_extract prior_year` };
+                            return (
+                              <tr key={i} className="bg-white hover:bg-gray-50">
+                                <td className="px-3 py-2 text-gray-500">{i + 1}</td>
+                                <td className="px-3 py-2 font-medium text-gray-900">{row.line_item}</td>
+                                <td className="px-3 py-2">
+                                  <span className={`px-1.5 py-0.5 text-[10px] font-bold uppercase ${
+                                    row.section === 'OWNERS_EQUITY' ? 'bg-amber-50 text-amber-800' :
+                                    row.section === 'ASSETS' ? 'bg-green-50 text-green-800' :
+                                    'bg-blue-50 text-blue-800'
+                                  }`}>{row.section || '–'}</span>
+                                </td>
+                                <td className="px-3 py-2 text-gray-600">{row.fund || 'N/A'}</td>
+                                <td className="px-3 py-2 text-right font-mono font-medium"><ForensicCell val={currTrace} docs={docs} files={files} /></td>
+                                <td className="px-3 py-2 text-right font-mono"><ForensicCell val={priorTrace} docs={docs} files={files} /></td>
+                              </tr>
+                            );
+                          })}
+                        </tbody>
+                      </table>
+                    </div>
+                  </>
+                ) : (safeData.bs_column_mapping || (safeData.bs_structure && Array.isArray(safeData.bs_structure) && safeData.bs_structure.length > 0)) ? (
+                  <div className="p-4 bg-amber-50 border border-amber-200 rounded text-amber-800 text-[13px]">
+                    Legacy format: bs_column_mapping / bs_structure present. Run a fresh audit to populate bs_extract.
                   </div>
                 ) : (
                   <div className="p-6 bg-gray-50 border border-gray-100 rounded text-center text-gray-500 text-[13px] italic">
-                    Run Step 0 only to extract Balance Sheet structure.
+                    Run Step 0 to export Balance Sheet extract (single source for Phase 2 &amp; 4).
                   </div>
                 )}
               </div>
@@ -1444,20 +1447,24 @@ export const AuditReport: React.FC<AuditReportProps> = ({ data, files, triageIte
                                                 const pageRef = evParts[1]?.trim() || evRef;
                                                 // BS Amount: source is Balance Sheet only – use Step 0 core_data_positions.balance_sheet + year_column when available
                                                 const bsDoc = safeData.core_data_positions?.balance_sheet;
-                                                const yearColumnLabel = item.year_column || safeData.bs_column_mapping?.current_year_label || 'Current Year column';
+                                                const yearColumnLabel = item.year_column || safeData.bs_extract?.current_year_label || safeData.bs_column_mapping?.current_year_label || 'Current Year column';
                                                 const bsTrace: TraceableValue = bsDoc
                                                     ? { amount: item.bs_amount ?? 0, source_doc_id: bsDoc.doc_id, page_ref: `${bsDoc.page_range} › ${yearColumnLabel}`, note: item.note || `From BS column '${yearColumnLabel}'` }
                                                     : { amount: item.bs_amount ?? 0, source_doc_id: 'Balance Sheet (FS)', page_ref: yearColumnLabel, note: item.note || `From BS column '${yearColumnLabel}'` };
-                                                const supTrace: TraceableValue = { amount: item.supporting_amount ?? 0, source_doc_id: srcId, page_ref: pageRef, note: item.note || '' };
-                                                const noteContent = item.note || item.evidence_ref || '–';
+                                                const supTrace: TraceableValue = { amount: item.supporting_amount ?? 0, source_doc_id: srcId, page_ref: pageRef, note: item.supporting_note || item.evidence_ref || '' };
+                                                const noteContent = item.supporting_note || item.evidence_ref || '–';
+                                                const isTotalOrSubtotal = item.status === 'SUBTOTAL_CHECK_ONLY' || /^(total|subtotal|net)\s|(total|subtotal)\s*$|^net\s+(assets|liabilities|equity)/i.test(item.line_item || '');
+                                                const rowClass = isTotalOrSubtotal ? 'group hover:bg-gray-100 border-t-2 border-gray-300 bg-gray-50/80' : 'group hover:bg-gray-50';
+                                                const cellBg = isTotalOrSubtotal ? 'bg-gray-50/80 group-hover:bg-gray-100' : 'bg-white group-hover:bg-gray-50';
+                                                const lineItemClass = isTotalOrSubtotal ? 'px-5 py-3 text-left pl-6 font-bold text-gray-800 sticky left-0 z-10 ' + cellBg : 'px-5 py-3 text-left pl-8 text-gray-600 font-medium sticky left-0 z-10 ' + cellBg;
                                                 rows.push(
-                                                    <tr key={idx} className="group hover:bg-gray-50">
-                                                        <td className="px-5 py-3 text-left pl-8 text-gray-600 font-medium sticky left-0 z-10 bg-white group-hover:bg-gray-50">{item.line_item}</td>
-                                                        <td className="px-5 py-3 text-left text-gray-600">{item.fund || '–'}</td>
-                                                        <td className="px-5 py-3"><ForensicCell val={bsTrace} docs={docs} files={files} /></td>
-                                                        <td className="px-5 py-3"><ForensicCell val={supTrace} docs={docs} files={files} /></td>
-                                                        <td className="px-5 py-3 text-center"><StatusBadge status={item.status} /></td>
-                                                        <td className="px-5 py-3 text-left pl-4 pr-3 text-gray-400 italic text-[13px] sticky right-0 z-10 bg-white group-hover:bg-gray-50">
+                                                    <tr key={idx} className={rowClass}>
+                                                        <td className={lineItemClass}>{item.line_item}</td>
+                                                        <td className={`px-5 py-3 text-left text-gray-600 ${isTotalOrSubtotal ? 'font-semibold' : ''} ${cellBg}`}>{item.fund || '–'}</td>
+                                                        <td className={`px-5 py-3 ${cellBg}`}><ForensicCell val={bsTrace} docs={docs} files={files} isBold={isTotalOrSubtotal} /></td>
+                                                        <td className={`px-5 py-3 ${cellBg}`}><ForensicCell val={supTrace} docs={docs} files={files} isBold={isTotalOrSubtotal} /></td>
+                                                        <td className={`px-5 py-3 text-center ${cellBg}`}><StatusBadge status={item.status} /></td>
+                                                        <td className={`px-5 py-3 text-left pl-4 pr-3 text-gray-400 italic text-[13px] sticky right-0 z-10 ${cellBg}`}>
                                                             {withAction(`bs_${idx}_${(item.line_item || '').replace(/\s+/g, '_')}`, item.line_item || 'Line', noteContent)}
                                                         </td>
                                                     </tr>

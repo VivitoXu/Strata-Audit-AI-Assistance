@@ -23,8 +23,7 @@ You MUST return a single JSON object with these top-level keys:
 - document_register: Array of document entries
 - intake_summary: Object with strata_plan, financial_year, total_files, missing_critical_types, status
 - core_data_positions: Object locking document/page locations (see schema)
-- bs_column_mapping: Object with current_year_label, prior_year_label (or null if single-column BS)
-- bs_structure: Array of Balance Sheet line items (optional but recommended)
+- bs_extract: Full Balance Sheet export { prior_year_label, current_year_label, rows } – MANDATORY single source of truth for Phase 2/4/5
 
 Do NOT include levy_reconciliation, assets_and_cash, expense_samples, statutory_compliance, or completion_outputs.
 
@@ -59,10 +58,13 @@ JSON SCHEMA (Step 0 only):
     "minutes_levy": { "doc_id": "String", "page_ref": "String" } | null,
     "minutes_auth": { "doc_id": "String", "page_ref": "String" } | null
   },
-  "bs_column_mapping": { "current_year_label": "String", "prior_year_label": "String" } | null,
-  "bs_structure": [
-    { "line_item": "String", "section": "OWNERS_EQUITY|ASSETS|LIABILITIES", "fund": "String (Admin|Capital|N/A)" }
-  ]
+  "bs_extract": {
+    "prior_year_label": "String (e.g. 2023)",
+    "current_year_label": "String (e.g. 2024)",
+    "rows": [
+      { "line_item": "String", "section": "OWNERS_EQUITY|ASSETS|LIABILITIES", "fund": "Admin|Capital|N/A", "prior_year": Number, "current_year": Number }
+    ]
+  }
 }
 `;
 

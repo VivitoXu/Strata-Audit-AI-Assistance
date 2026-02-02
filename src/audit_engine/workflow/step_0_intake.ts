@@ -56,9 +56,14 @@ Objective: Establish the single source of truth.
    - **minutes_levy** / **minutes_auth**: Which doc + page_ref has levy rate adoption (Old/New) and manager authorization limits?
    - If a doc type is not found, set that key to null.
 
-7. BS COLUMN MAPPING (when Balance Sheet has Prior Year and Current Year columns):
-   - Extract the exact column header/label for **Current Year** (e.g. "30 Jun 2025") and **Prior Year** (e.g. "30 Jun 2024"). Use the verbatim text from the FS. If single-column BS, omit or set null.
-
-8. BS STRUCTURE (optional but recommended):
-   - List every line item that appears on the Balance Sheet, in order. For each: line_item (exact name from FS), section (OWNERS_EQUITY | ASSETS | LIABILITIES), fund (Admin | Capital | N/A if not applicable).
+7. BS EXTRACT – FULL BALANCE SHEET (MANDATORY – single source of truth for Phase 2/4/5):
+   - **Export the Balance Sheet in full** including Prior Year and Current Year columns. This is the ONLY permitted source for BS-derived data in Phase 2, Phase 4, and Phase 5.
+   - Scan all Balance Sheet pages (main BS + any Notes/schedules that break down BS line items, e.g. Receivables detail). For each row that carries a numeric amount:
+     • line_item: exact name from FS
+     • section: OWNERS_EQUITY | ASSETS | LIABILITIES
+     • fund: Admin | Capital | Sinking | TOTAL | N/A as shown
+     • prior_year: amount from Prior Year column
+     • current_year: amount from Current Year column
+   - Identify Prior Year and Current Year columns by reporting date (use intake_summary.financial_year). Prior = column with date = Prior FY end; Current = column with date = Current FY end.
+   - Output bs_extract: { prior_year_label, current_year_label, rows: [...] }. Include EVERY line item (Owners Equity, Assets, Liabilities). If single-column BS, use that column for current_year and set prior_year = 0 or omit row.
 `;

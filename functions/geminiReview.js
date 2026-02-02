@@ -52,7 +52,7 @@ INSTRUCTIONS:
 3. Execute ${mode === "levy" ? "Phase 2 (Levy Reconciliation)" : mode === "phase4" ? "Phase 4 (Balance Sheet Verification)" : "Phase 3 (Expenses Vouching)"} ONLY.
 4. Return ONLY ${mode === "levy" ? "\"levy_reconciliation\"" : mode === "phase4" ? "\"assets_and_cash\"" : "\"expense_samples\""}. No other keys.
 ${mode === "phase4" ? `
-5. [Phase 4 ONLY] Use LOCKED step0 core_data_positions.balance_sheet and bs_column_mapping to locate the Balance Sheet and Current Year column; use bs_structure as the mandatory list of rows. Copy bs_amount and line_item ONLY from that FS Balance Sheet (Current Year). supporting_amount ONLY from non-BS evidence per R2–R5. PROHIBITED: Balance Sheet as source for supporting_amount; GL/ledger as source for bs_amount.
+5. [Phase 4 ONLY] bs_amount and line_item MUST be looked up from LOCKED bs_extract. supporting_amount from R2–R5 (Bank Stmt, Levy Report, etc.). Do NOT re-read Balance Sheet PDF.
 ` : ""}
 ` :
     previousAudit && !isStep0Only ?
@@ -78,11 +78,10 @@ ${fileManifest}
 INSTRUCTIONS:
 1. Execute Step 0 ONLY. Create the Document Dictionary. You MUST map "File Part 1" to the first name in the list above, "File Part 2" to the second, etc.
 2. The "Document_Origin_Name" in the JSON MUST match the filename exactly.
-3. Do NOT execute Phases 1–6. Return document_register, intake_summary, core_data_positions, bs_column_mapping, and bs_structure. Do NOT include levy_reconciliation, assets_and_cash, expense_samples, statutory_compliance, or completion_outputs.
+3. Do NOT execute Phases 1–6. Return document_register, intake_summary, core_data_positions, and bs_extract. Do NOT include levy_reconciliation, assets_and_cash, expense_samples, statutory_compliance, or completion_outputs.
 4. Extract strata_plan and financial_year from minutes/financials into intake_summary.
 5. Populate core_data_positions with doc_id and page_range for each evidence type (balance_sheet, bank_statement, levy_report, etc.). Use null if not found.
-6. Populate bs_column_mapping with current_year_label and prior_year_label when BS has two columns; else null.
-7. Populate bs_structure with every Balance Sheet line item (line_item, section, fund) when possible.
+6. Populate bs_extract: export the full Balance Sheet including Prior Year and Current Year columns. For each row: line_item, section, fund, prior_year, current_year. Use prior_year_label and current_year_label. This is the single source of truth for Phase 2 and Phase 4.
 ` :
       `
 ATTACHED FILE MAPPING (Strictly map the binary parts to these names):
@@ -93,8 +92,9 @@ INSTRUCTIONS:
    "File Part 2" to the second, etc.
 2. The "Document_Origin_Name" in the JSON MUST match the filename exactly.
 3. Execute Phases 1-6 based on these files.
-4. **MANDATORY – Phase 2 rules:** Apply PRIOR YEAR LEVY BALANCES (Prior Year BS column only), CURRENT YEAR LEVY BALANCES (Current Year BS column only), TOTAL RECEIPTS (Tier 1 cash-based only), GST COMPONENT, Old/New Rate Levies (minutes only, quarterly proportion). **CRITICAL:** The field name tells you which column to use: PriorYear_Arrears, PriorYear_Advance = Prior Year column ONLY; CurrentYear_Arrears, CurrentYear_Advance = Current Year column ONLY. Do NOT swap. Do NOT use prohibited evidence.
-5. **MANDATORY – Phase 4 balance_sheet_verification:** You MUST populate as array. **bs_amount and line_item** = from Balance Sheet (FS) ONLY – do NOT use GL, ledger, or summary. **supporting_amount** = verification evidence per R2–R5. Include EVERY Balance Sheet line – Owners Equity, Assets, Liabilities. For Cash at Bank/Term Deposits: supporting_amount from Bank Statement (Tier 1) ONLY. Status per Phase 4 rules. Fill "note" with AI explanation.
+4. **MANDATORY – Step 0 bs_extract:** Export full Balance Sheet with prior_year and current_year for each line item. Single source of truth for Phase 2 and Phase 4.
+5. **MANDATORY – Phase 2:** PriorYear_Arrears, PriorYear_Advance, CurrentYear_Arrears, CurrentYear_Advance MUST be looked up from LOCKED bs_extract ONLY. Do NOT use Levy Reports, GL, or any other source.
+6. **MANDATORY – Phase 4 balance_sheet_verification:** bs_amount and line_item MUST be looked up from LOCKED bs_extract ONLY. supporting_amount from R2–R5 evidence (Bank Stmt, Levy Report, etc.). Fill note and supporting_note separately.
 `;
 
   let lastError;

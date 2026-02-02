@@ -1,43 +1,120 @@
 /**
  * Phase 4 – Full Balance Sheet Verification (Owners Equity, Assets, Liabilities).
- * Apply GATE 2 logic to every line item on the Balance Sheet. No bank reconciliation or fund integrity tables.
+ * Apply GATE 2 logic to every Balance Sheet line item.
+ * NO bank reconciliation tables. External vouching only.
  */
 
 export const PHASE_4_ASSETS_PROMPT = `
 PHASE 4 – FULL BALANCE SHEET VERIFICATION
-Objective: Extract and verify EVERY line item from the Financial Statement Balance Sheet – Owners Equity, Assets, and Liabilities. **MANDATORY – You MUST apply GATE 2 logic (Phase 4 rules R1–R5) strictly per line-item type.**
+Objective: Extract and verify EVERY line item from the Financial Statement Balance Sheet – Owners Equity, Assets, and Liabilities.
 
-**CRITICAL – bs_amount & line_item SOURCE:** Use LOCKED Step 0 core_data_positions.balance_sheet and bs_column_mapping to locate the Balance Sheet document and Current Year column. line_item and bs_amount MUST be copied ONLY from that FS Balance Sheet (Current Year column). Do NOT use General Ledger, Levy Report, Cash Summary, Owner Ledger, or any other document to fill bs_amount or line_item. **supporting_amount** is for verification ONLY – from non-BS evidence per R2–R5 (Bank Stmt, Levy Report, breakdown report, GL). **PROHIBITED:** Balance Sheet as source for supporting_amount; GL/ledger/summary as source for bs_amount.
+MANDATORY: You MUST apply GATE 2 logic (Phase 4 Rules R1–R5) strictly per line-item type.
 
-**COMPLETENESS SOURCE OF TRUTH:** The authoritative row list is the physical FS Balance Sheet pages (page-by-page). bs_structure is a helper index only. If any mismatch exists, the page scan wins and bs_structure must be amended in output notes. **DATA ROW FILTER:** Do not output headings, blank lines, section titles, or subtotal labels unless they carry a numeric amount in the Current Year column.
+────────────────────────────────────────
+SECTION A – LOCKED EXTRACTION RULES (DO NOT VIOLATE)
+────────────────────────────────────────
 
-**CRITICAL – COLUMN ANCHORING (MANDATORY):** For EVERY line item in balance_sheet_verification, you MUST:
-1. Use bs_column_mapping.current_year_label to identify the Current Year column on the Balance Sheet (e.g., "2024", "30/06/2024", "Current Year").
-2. Output a "year_column" field with the EXACT value of bs_column_mapping.current_year_label for every line item.
-3. In the "note" field, explicitly state: "From BS column '{current_year_label}'" (e.g., "From BS column '2024'").
-4. **PROHIBITED:** Do NOT use bs_column_mapping.prior_year_label for any line item except RULE 1 (Owners Funds at Start). If RULE 1 uses Prior Year, output year_column = bs_column_mapping.prior_year_label and note = "From BS column '{prior_year_label}' (Prior Year closing for roll-forward)".
+CRITICAL – bs_amount & line_item SOURCE (LOCKED bs_extract):
+- bs_amount and line_item MUST be looked up from LOCKED Step 0 bs_extract ONLY. Do NOT re-read the Balance Sheet PDF.
+- For each row in balance_sheet_verification: find the matching row in bs_extract.rows (by line_item). Use current_year for bs_amount (except RULE 1).
 
-**CRITICAL – COMPLETENESS:** balance_sheet_verification MUST include EVERY line item on the Balance Sheet. Scan the FS Balance Sheet page-by-page. Do NOT omit Owners Equity, Assets, or Liabilities. Every BS row = one output row.
+PROHIBITED:
+- Do NOT use General Ledger, Levy Reports, Bank Statements, or any non-bs_extract source for bs_amount or line_item.
+- Do NOT substitute ledger figures if bs_extract is missing or has no matching row.
 
-**AUDIT PERIOD ANCHOR (global setting – use intake_summary.financial_year):** Use intake_summary.financial_year as the global audit period. **Current Year = the FY being audited.** Prior Year = the column immediately before it. If not yet in intake_summary, determine FY from minutes and write to intake_summary.
+CRITICAL – COMPLETENESS SOURCE OF TRUTH:
+- The authoritative row list is LOCKED bs_extract.rows. Output one balance_sheet_verification row for each row in bs_extract.rows.
 
-**CURRENT YEAR COLUMN ONLY – PROHIBITED to use Prior Year for RULES 2–5:**
-- Extract amounts from the **CURRENT audit period / CURRENT YEAR column** only. **PROHIBITED:** Do NOT use Prior Year column for any line item except RULE 1 roll-forward.
-- **Exception:** Use Prior Year column ONLY for RULE 1 (Owners Funds at Start = Prior Year Closing Balance). This is the ONLY line item allowed to use Prior Year. All other Owners Equity items (Retained Earnings, Accumulated Funds, etc.), all Assets, and all Liabilities MUST use Current Year column.
-- **PROHIBITED:** Prior Year column values may NOT be used as supporting_amount or as a substitute evidence amount for any rule. supporting_amount MUST come from Current Year period evidence only (Bank Statement as at FY end, Levy Position Report as at FY end, etc.).
-- If in doubt, verify column header says "Current Year" or "This Year" or the date falls within intake_summary.financial_year.
+DATA ROW FILTER:
+- Output ONLY Balance Sheet rows that carry a numeric amount in the Current Year column.
+- Do NOT output section headers or titles.
+- Subtotals WITH numeric amounts MUST be included and flagged as SUBTOTAL_CHECK_ONLY.
 
-**FULL BALANCE SHEET SCOPE – extract ALL line items:**
-- **Owners Equity:** Owners Funds at Start, Retained Earnings, Accumulated Funds, etc.
-- **Assets:** Cash at Bank, Term Deposits, Levy Arrears, Levies in Advance (if asset), Accrued Receivables, Prepaid Expenses, Sundry Debtors, etc.
-- **Liabilities:** Creditors, Accrued Expenses, Levies in Advance (if liability), Tax Liabilities, Unpaid Invoices, etc.
+────────────────────────────────────────
+SECTION B – bs_amount FROM bs_extract (MANDATORY)
+────────────────────────────────────────
 
-1. **MANDATORY** – Apply GATE 2 logic to balance sheet DATA ROWS only (not headers). Assign each line to section: OWNERS_EQUITY, ASSETS, or LIABILITIES.
-2. **MANDATORY – supporting_amount evidence per line type (Phase 4 rules R2–R5):**
-   - **Cash at Bank, Term Deposits:** supporting_amount MUST come from Bank Statement / TD Statement (Tier 1) ONLY. Do NOT use GL. If no Bank Stmt/TD Statement → status = "MISSING_BANK_STMT"; do NOT fill from GL.
-   - **Levy Arrears, Levies in Advance:** supporting_amount from Tier 2 Levy Position Report; if only GL → status = "TIER_3_ONLY".
-   - **Accrued/Prepaid/Creditors:** supporting_amount from Tier 2 breakdown report; if only GL → status = "MISSING_BREAKDOWN".
-   - **Other items (RULE 5):** supporting_amount from GL.
-3. For each line item, output: line_item, section, fund, bs_amount (from FS CURRENT YEAR column), year_column (MANDATORY – exact value from bs_column_mapping.current_year_label), supporting_amount (from permitted evidence per rules), evidence_ref (Doc_ID/Page), status (per Phase 4 rules), note.
-4. **NOTE (AI explanation holder – same as Table E.Master Note/Source):** For every line item, generate a "note" that INCLUDES the column label (e.g., "From BS column '2024'", "Bank Statement p.2 as at FY end", "Levy Position Report p.1", "GL Cash reconciled"). Human-readable AI explanation – same purpose as Phase 2 master_table note.
+For EVERY output row:
+1. Find matching row in bs_extract.rows by line_item.
+2. year_column = bs_extract.current_year_label (or prior_year_label for RULE 1 only).
+3. bs_amount = matching row's current_year (or prior_year for RULE 1 only).
+4. note = "BS: From bs_extract current_year" (or "prior_year for roll-forward" for RULE 1).
+
+RULE 1 EXCEPTION – "Owners Funds at Start of Year":
+- bs_amount = prior_year from bs_extract (Prior Year closing for roll-forward).
+- year_column = bs_extract.prior_year_label.
+
+PROHIBITED:
+- Do NOT use prior_year for ANY other line item. All others use current_year.
+
+────────────────────────────────────────
+SECTION C – SCOPE & CLASSIFICATION
+────────────────────────────────────────
+
+FULL BALANCE SHEET SCOPE:
+You MUST include EVERY Balance Sheet line item:
+- OWNERS_EQUITY
+- ASSETS
+- LIABILITIES
+
+Assign each line item to ONE section only.
+
+fund field:
+- fund MUST be taken from the Balance Sheet presentation (Admin, Capital, Sinking, etc.).
+- If no fund split exists, output fund = "TOTAL" and explain in note.
+
+────────────────────────────────────────
+SECTION D – AUDIT PERIOD ANCHOR
+────────────────────────────────────────
+
+AUDIT PERIOD:
+- Use intake_summary.financial_year as the audit period.
+- CURRENT YEAR = the FY under audit.
+- Prior Year = the column immediately before it.
+- If not present, derive FY from meeting minutes and write to intake_summary.
+
+────────────────────────────────────────
+SECTION E – VERIFICATION (GATE 2 LOGIC)
+────────────────────────────────────────
+
+For EACH extracted Balance Sheet line item:
+- Apply Phase 4 Rules R1–R5 (see rules prompt).
+- supporting_amount is for VERIFICATION ONLY.
+- supporting_amount MUST come from permitted NON-BS evidence per rule.
+
+STRICT SOURCE SEPARATION:
+- bs_amount source = Balance Sheet ONLY.
+- supporting_amount source = NON-BS evidence ONLY (except RULE 1 exception).
+
+If required evidence is missing:
+- Set appropriate MISSING_* status.
+- supporting_amount = 0 and evidence_ref = "".
+- Do NOT substitute with GL.
+
+────────────────────────────────────────
+SECTION F – OUTPUT FIELDS (MANDATORY)
+────────────────────────────────────────
+
+For EACH Balance Sheet row, output ONE row with:
+- line_item
+- section (OWNERS_EQUITY / ASSETS / LIABILITIES)
+- fund
+- bs_amount
+- year_column
+- supporting_amount
+- evidence_ref (Doc_ID/Page)
+- status
+- note
+- supporting_note
+
+NOTE FIELD STRUCTURE (MANDATORY – TWO SEPARATE FIELDS):
+- note = bs_amount source ONLY. Example: "BS: From BS column '2024'" or "BS: From BS column 'Prior Year' (roll-forward)". Do NOT include supporting evidence.
+- supporting_note = supporting_amount source ONLY. Example: "Matches Macquarie Investment Account Statement 2036-74072", "Bank Statement p.2 as at FY end". Do NOT include "From BS column".
+- For SUBTOTAL_CHECK_ONLY rows: supporting_amount = 0, evidence_ref = "", supporting_note = "Subtotal – not independently vouched".
+
+Global tolerance:
+- Absolute tolerance = 1.00
+- Normalize signs before comparison.
+
+END PHASE 4
 `;

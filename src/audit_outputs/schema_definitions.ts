@@ -182,7 +182,22 @@ const ExpenseSampleSchema = z.object({
   verification_steps: z.array(VerificationStepSchema).optional(),
 });
 
-/** Phase 4: bs_amount = from Financial Statement Balance Sheet only; supporting_amount = from R2–R5 evidence only (Bank Stmt, Levy Report, breakdown, GL). year_column = MANDATORY column label from bs_column_mapping to ensure correct year. */
+/** Step 0: Full Balance Sheet extract – single source of truth for Phase 2/4/5 */
+const BsExtractRowSchema = z.object({
+  line_item: z.string(),
+  section: z.enum(["OWNERS_EQUITY", "ASSETS", "LIABILITIES"]).optional(),
+  fund: z.string().optional(),
+  prior_year: z.number(),
+  current_year: z.number(),
+});
+
+const BsExtractSchema = z.object({
+  prior_year_label: z.string(),
+  current_year_label: z.string(),
+  rows: z.array(BsExtractRowSchema),
+});
+
+/** Phase 4: bs_amount = from LOCKED bs_extract (current_year for most; prior_year for RULE 1 only); supporting_amount = from R2–R5 evidence only. */
 const BalanceSheetVerificationItemSchema = z.object({
   line_item: z.string(),
   section: z.enum(["OWNERS_EQUITY", "ASSETS", "LIABILITIES"]).optional(),
@@ -200,8 +215,10 @@ const BalanceSheetVerificationItemSchema = z.object({
     "MISSING_BREAKDOWN",
     "NO_SUPPORT",
     "GL_SUPPORTED_ONLY",
+    "SUBTOTAL_CHECK_ONLY",
   ]),
-  note: z.string().optional(),
+  note: z.string().optional(), // bs_amount source – "From BS column 'X'"
+  supporting_note: z.string().optional(), // supporting_amount source – e.g. "Matches Bank Statement p.2"
 });
 
 const GSTRecMasterSchema = z.object({
@@ -271,6 +288,7 @@ const CompletionOutputsSchema = z.object({
 export const AuditResponseSchema = z.object({
   document_register: z.array(DocumentEntrySchema),
   intake_summary: IntakeSummarySchema,
+  bs_extract: BsExtractSchema.optional(),
   levy_reconciliation: LevyRecSchema.optional(),
   assets_and_cash: z
     .object({

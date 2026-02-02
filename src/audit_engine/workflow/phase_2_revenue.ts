@@ -7,11 +7,12 @@ export const PHASE_2_REVENUE_PROMPT = `
 PHASE 2 – REVENUE CYCLE (LEVY INCOME)
 Objective: Verify Completeness of Levies and Reconcile with Balance Sheet via Master Table E.
 
-**STEP 0 – COLUMN IDENTIFICATION BY DATE (MANDATORY):** You MUST apply PHASE 2 COLUMN IDENTIFICATION BY DATE. From intake_summary.financial_year derive Prior FY end and Current FY end. Identify the reporting date of each BS column from the FS; map the column whose date = Current FY end to **CurrentYearColumn**, and the column whose date = Prior FY end to **PriorYearColumn**. If you cannot map by date, do NOT fill PriorYear_*/CurrentYear_* fields and mark Not Resolved – Boundary Defined. Do NOT rely on column labels (e.g. "2023"/"2024") alone – use **date** to decide.
+**LOCKED BS_EXTRACT – SOLE SOURCE FOR BALANCE SHEET DATA (MANDATORY):**
+PriorYear_Arrears, PriorYear_Advance, CurrentYear_Arrears, CurrentYear_Advance MUST be looked up from LOCKED Step 0 bs_extract ONLY. Do NOT re-read the Balance Sheet PDF or use Levy Reports, GL, or any other source for these four fields.
 
-1. **MANDATORY – Prior Year Levy Balances (PriorYear_Arrears, PriorYear_Advance):** You MUST apply PHASE 2 PRIOR YEAR LEVY BALANCES rule set. Source STRICTLY from the column you identified as **PriorYearColumn** (date = Prior FY end). PriorYear_* = that column ONLY. PROHIBITED: Levy Position Reports, Owner Ledgers, GL, FS Notes. If not traceable → Not Resolved – Boundary Defined.
-2. **MANDATORY – Current Year Levy Balances (CurrentYear_Arrears, CurrentYear_Advance):** You MUST apply PHASE 2 CURRENT YEAR LEVY BALANCES rule set. Source STRICTLY from the column you identified as **CurrentYearColumn** (date = Current FY end). CurrentYear_* = that column ONLY. DO NOT put Prior Year figures into CurrentYear_* or Current Year into PriorYear_*. PROHIBITED: Levy Position Reports, Owner Ledgers, GL, FS Notes. If not traceable → Not Resolved – Boundary Defined.
-3. Locate 'Levies in Arrears' (Dr/asset) and 'Levies in Advance' (Cr/liability) in the Balance Sheet. Use PriorYearColumn for PriorYear_* fields; CurrentYearColumn for CurrentYear_* fields. Do NOT swap columns or Arrears/Advance concepts.
+1. **PriorYear_Arrears, PriorYear_Advance:** Find rows in bs_extract.rows that represent Levies in Arrears (Dr/asset) and Levies in Advance (Cr/liability). Sum prior_year amounts as needed. Use core_data_positions.balance_sheet for source_doc_id and page_ref.
+2. **CurrentYear_Arrears, CurrentYear_Advance:** Same rows – use current_year amounts. Do NOT swap Prior/Current.
+3. If bs_extract is missing or has no matching rows → Not Resolved – Boundary Defined.
 4. **MANDATORY – Total Receipts – Admin & Capital Actual Payments (PRIMARY, REQUIRED):** You MUST use the Admin & Capital Actual Payments method. Actively find (1) Administrative Fund receipt/payment summary for the audit FY and (2) Capital/Sinking Fund receipt/payment summary for the audit FY, prefer **Cash management report** when available; otherwise from the whitelist (Levy Receipts Report, Levy Summary by Fund, Fund Ledger – Admin/Capital, Contribution Report, etc.). Output **Admin_Fund_Receipts** and **Capital_Fund_Receipts** as separate TraceableValue fields (each with amount, source_doc_id, page_ref, note, verbatim_quote). Total_Receipts_Global = Admin_Fund_Receipts.amount + Capital_Fund_Receipts.amount; Effective_Levy_Receipts = Total_Receipts_Global. Do NOT output Non_Levy_Income. If a single combined receipt summary segregates Admin and Capital, extract each fund total into Admin_Fund_Receipts and Capital_Fund_Receipts. If neither Admin & Capital fund-specific reports nor a combined summary with fund segregation is available → Not Resolved – Boundary Defined.
 5. Recompute Total Receipts and compare to Effective Levy Receipts from Bank/GL.
 6. For every line item, generate a "note" explaining the source context (e.g., "Prior Year BS closing", "Current Year BS closing", "Cash Receipts Summary p.3", "AGM Motion 3.1", "Calculated"). For every CALCULATED figure, fill "computation" (method and expression) and in "note" state the calculation content.
@@ -26,9 +27,9 @@ Objective: Verify Completeness of Levies and Reconcile with Balance Sheet via Ma
 
 **FINAL VERIFICATION BEFORE OUTPUT (输出前最终验证):**
 Before returning the JSON, perform these checks:
-1. PriorYear_Arrears and PriorYear_Advance: Verify source is **Prior Year Balance Sheet column**.
-2. CurrentYear_Arrears and CurrentYear_Advance: Verify source is **Current Year Balance Sheet column**.
-3. The field name tells you which column to use – PriorYear_* = Prior Year column; CurrentYear_* = Current Year column.
+1. PriorYear_Arrears and PriorYear_Advance: Verify looked up from bs_extract (prior_year amounts).
+2. CurrentYear_Arrears and CurrentYear_Advance: Verify looked up from bs_extract (current_year amounts).
+3. Do NOT use any source other than bs_extract for these four fields.
 4. Arrears amounts = positive (Debit/Asset); Advance amounts = positive but subtracted in Net (Credit/Liability).
 If any check fails, correct before output.
 `;

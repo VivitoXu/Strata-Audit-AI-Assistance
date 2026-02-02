@@ -53,17 +53,32 @@ export interface CoreDataPositions {
   minutes_auth?: MinutesRef | null;
 }
 
-/** Step 0: Balance Sheet column mapping (when BS has Prior/Current Year columns) */
+/** Step 0: Balance Sheet column mapping (when BS has Prior/Current Year columns) – deprecated, use bs_extract */
 export interface BsColumnMapping {
   current_year_label: string;
   prior_year_label: string;
 }
 
-/** Step 0: Balance Sheet line item structure */
+/** Step 0: Balance Sheet line item structure – deprecated, use bs_extract */
 export interface BsStructureItem {
   line_item: string;
   section: "OWNERS_EQUITY" | "ASSETS" | "LIABILITIES";
   fund?: string;
+}
+
+/** Step 0: Full Balance Sheet extract – SINGLE SOURCE OF TRUTH for Phase 2/4/5 BS-derived data */
+export interface BsExtractRow {
+  line_item: string;
+  section?: "OWNERS_EQUITY" | "ASSETS" | "LIABILITIES";
+  fund?: string;
+  prior_year: number;
+  current_year: number;
+}
+
+export interface BsExtract {
+  prior_year_label: string;
+  current_year_label: string;
+  rows: BsExtractRow[];
 }
 
 export interface TraceableValue {
@@ -152,9 +167,11 @@ export interface BalanceSheetVerificationItem {
   supporting_amount: number;
   /** Doc_ID/Page for traceability (e.g. "Sys_001/Page 2") */
   evidence_ref: string;
-  status: "VERIFIED" | "VARIANCE" | "MISSING_BANK_STMT" | "TIER_3_ONLY" | "MISSING_LEVY_REPORT" | "MISSING_BREAKDOWN" | "NO_SUPPORT" | "GL_SUPPORTED_ONLY";
-  /** AI explanation holder (same as Table E.Master Note/Source) – human-readable source context e.g. "Bank Statement p.2 as at FY end", "From BS column '2024'" */
+  status: "VERIFIED" | "VARIANCE" | "MISSING_BANK_STMT" | "TIER_3_ONLY" | "MISSING_LEVY_REPORT" | "MISSING_BREAKDOWN" | "NO_SUPPORT" | "GL_SUPPORTED_ONLY" | "SUBTOTAL_CHECK_ONLY";
+  /** bs_amount source context – e.g. "From BS column '2024'". Used for BS Amount ForensicCell. Do NOT include supporting evidence here. */
   note?: string;
+  /** supporting_amount source context – e.g. "Matches Macquarie Investment Account Statement 2036-74072". Used for Supporting ForensicCell ONLY. Do NOT include "From BS column". */
+  supporting_note?: string;
 }
 
 export interface AssetsAndCash {
@@ -315,10 +332,12 @@ export interface AuditResponse {
   intake_summary: IntakeSummary;
   /** Step 0: Core data positions (document/page locks for Phase 2/4/3) */
   core_data_positions?: CoreDataPositions | null;
-  /** Step 0: BS column mapping when Prior/Current Year columns exist */
+  /** Step 0: BS column mapping when Prior/Current Year columns exist (deprecated – use bs_extract) */
   bs_column_mapping?: BsColumnMapping | null;
-  /** Step 0: Balance Sheet line item structure */
+  /** Step 0: Balance Sheet line item structure (deprecated – use bs_extract) */
   bs_structure?: BsStructureItem[] | null;
+  /** Step 0: Full BS extract – single source of truth for Phase 2/4/5. Use prior_year/current_year from rows. */
+  bs_extract?: BsExtract | null;
   levy_reconciliation?: LevyReconciliation;
   assets_and_cash?: AssetsAndCash;
   expense_samples?: ExpenseSample[];

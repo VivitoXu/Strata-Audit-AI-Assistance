@@ -892,6 +892,28 @@ const App: React.FC = () => {
                 </div>
               )}
 
+              {/* Processing banner – non-blocking; main UI (files, report) stays visible */}
+              {activePlan.status === "processing" && (
+                <div className="mt-4 p-4 bg-[#111] rounded border border-[#333] flex items-center justify-between gap-4 flex-wrap">
+                  <div className="flex items-center gap-3">
+                    <div className="relative w-10 h-10 shrink-0">
+                      <div className="w-10 h-10 border-2 border-[#333] rounded-full" />
+                      <div className="w-10 h-10 border-2 border-t-[#C5A059] border-r-transparent border-b-transparent border-l-transparent rounded-full absolute top-0 left-0 animate-spin" />
+                    </div>
+                    <div>
+                      <p className="text-white font-bold text-sm uppercase tracking-wide">Processing Audit Logic</p>
+                      <p className="text-gray-500 text-xs">{activePlan.name}</p>
+                    </div>
+                  </div>
+                  <button
+                    onClick={() => setActivePlanId(null)}
+                    className="shrink-0 bg-[#C5A059] hover:bg-[#A08040] text-black font-bold py-2 px-5 rounded text-xs uppercase tracking-wider transition-colors"
+                  >
+                    Run in Background
+                  </button>
+                </div>
+              )}
+
               {/* Files section (collapsible with timeline) */}
               <details className="mt-6 shrink-0 group" open>
                 <summary className="cursor-pointer text-xs font-bold text-gray-600 uppercase tracking-widest flex items-center gap-2 hover:text-[#C5A059] transition-colors p-3 bg-white border border-gray-200 rounded">
@@ -936,37 +958,6 @@ const App: React.FC = () => {
            </div>
         )}
       </main>
-
-      {/* --- CANCELLABLE LOADING SCREEN (Scoped to Active Plan) --- */}
-      {activePlan && activePlan.status === 'processing' && (
-        <div className="absolute inset-0 z-[200] bg-[#111] flex flex-col items-center justify-center animate-fade-in cursor-wait">
-            <div className="relative mb-8">
-                <div className="w-24 h-24 border-4 border-[#333] rounded-full"></div>
-                <div className="w-24 h-24 border-4 border-t-[#C5A059] border-r-transparent border-b-transparent border-l-transparent rounded-full absolute top-0 left-0 animate-spin"></div>
-                <div className="absolute inset-0 flex items-center justify-center">
-                    <span className="text-[#C5A059] font-bold text-xl animate-pulse">S</span>
-                </div>
-            </div>
-            
-            <h2 className="text-2xl font-bold text-white uppercase tracking-widest mb-1">Processing Audit Logic</h2>
-            <p className="text-gray-500 text-sm mb-8">{activePlan.name}</p>
-
-            <div className="flex flex-col gap-4 min-w-[250px]">
-               {/* 1. Run in Background (Concurrency) */}
-               <button 
-                 onClick={() => setActivePlanId(null)}
-                 className="w-full bg-[#C5A059] hover:bg-[#A08040] text-black font-bold py-3 px-6 rounded-sm uppercase tracking-wider text-xs transition-colors flex items-center justify-center gap-2"
-               >
-                 Run in Background
-               </button>
-            </div>
-
-            <div className="mt-12 text-[#444] text-[10px] font-mono animate-pulse text-center">
-                Validating Evidence Tiers...<br/>
-                Analyzing General Ledger...
-            </div>
-        </div>
-      )}
 
       {/* --- CREATE NEW PLAN MODAL --- */}
       {isCreateModalOpen && (

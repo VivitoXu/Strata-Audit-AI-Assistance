@@ -14,7 +14,7 @@ import { MODULE_50_OUTPUTS_PROMPT } from "../audit_outputs/output_registry";
 const LOCKED_CONTEXT_INSTRUCTION = `
 --- CALL 2 – LOCKED STEP 0 CONTEXT ---
 The user message will contain LOCKED STEP 0 OUTPUT. You MUST use it. Do NOT re-extract document_register or intake_summary.
-Use core_data_positions for document/page locations. Use intake_summary.financial_year as the global FY. Use bs_column_mapping for column anchoring when BS has two columns.
+Use core_data_positions for document/page locations. Use intake_summary.financial_year as the global FY. Use bs_extract as the sole source for Balance Sheet data – PriorYear_*/CurrentYear_* (Phase 2) and bs_amount (Phase 4) MUST be looked up from bs_extract.
 `;
 
 /** Levy-only output: return levy_reconciliation */
@@ -28,7 +28,7 @@ See MODULE 50 for the full levy_reconciliation structure. Apply all Phase 2 form
 const PHASE4_OUTPUT_SCHEMA = `
 --- OUTPUT: Return ONLY assets_and_cash ---
 You must return a JSON object with a single key "assets_and_cash" containing balance_sheet_verification array.
-See MODULE 50 for the full assets_and_cash structure. Apply Phase 4 rules R1–R5 strictly. support_amount per R2–R5.
+See MODULE 50 for the full assets_and_cash structure. Apply Phase 4 rules R1–R5 strictly. supporting_amount per R2–R5.
 `;
 
 /** Expenses-only output: return expense_samples (Phase 3 v2 risk-based structure) */

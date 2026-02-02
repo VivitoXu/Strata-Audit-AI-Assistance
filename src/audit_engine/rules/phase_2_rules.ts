@@ -38,127 +38,45 @@ export const PHASE_2_ITEM_RULES: PhaseRulesMap = {
   },
 };
 
-/** Patch A – MANDATORY column identification by DATE (not by label). Must run before filling PriorYear_* / CurrentYear_*. */
-export const PHASE_2_COLUMN_DATE_MAP = `
---- MANDATORY – COLUMN IDENTIFICATION BY DATE (DO NOT SKIP) ---
-Before filling PriorYear_Arrears, PriorYear_Advance, CurrentYear_Arrears, or CurrentYear_Advance, you MUST perform this step. Do NOT rely on column labels like "Prior Year" / "Current Year" / "2023" / "2024" alone – map by **reporting date**.
+/** LOCKED bs_extract – sole source for PriorYear_Arrears, CurrentYear_Arrears, etc. (replaces column mapping). */
+export const PHASE_2_BS_EXTRACT_LOOKUP = `
+--- LOCKED bs_extract – SOLE SOURCE FOR LEVY BALANCE FIELDS ---
+PriorYear_Arrears, PriorYear_Advance, CurrentYear_Arrears, CurrentYear_Advance MUST be looked up from LOCKED Step 0 bs_extract ONLY.
 
-**Step 1 – Derive FY dates from intake_summary.financial_year:**
-- Parse intake_summary.financial_year (e.g. "01/07/2024 - 30/06/2025" or "30/06/2025").
-- **Current FY end date** = last day of the audit FY (e.g. 30/06/2025).
-- **Prior FY end date** = last day of the year before the audit FY (e.g. 30/06/2024).
+**LOOKUP RULES:**
+- **PriorYear_Arrears** = Sum of prior_year from bs_extract.rows where line_item represents Levies in Arrears (Dr/asset). Match by line_item name (e.g. Levy Arrears, Contributions Receivable, Receivable--Levies--Admin, etc.). If BS shows Admin+Capital split, sum both.
+- **PriorYear_Advance** = Sum of prior_year from bs_extract.rows where line_item represents Levies in Advance (Cr/liability).
+- **CurrentYear_Arrears** = Sum of current_year from same Arrears rows.
+- **CurrentYear_Advance** = Sum of current_year from same Advance rows.
 
-**Step 2 – Identify the reporting date of EACH Balance Sheet column:**
-- From the Financial Statement Balance Sheet, read the column header or footnote for each numeric column (e.g. "As at 30 June 2025", "30 Jun 2024", "2024", "2023").
-- Resolve each to a single **reporting date** (the "as at" date for that column).
-- If the FS has two columns, you must determine: Column_A_Date = ? ; Column_B_Date = ?.
+**PROHIBITED:** Do NOT use Levy Position Report, Owner Ledger, GL, or any non-bs_extract source for these four fields.
 
-**Step 3 – Map columns by date (not by left/right or label text):**
-- **PriorYearColumn** = the column whose reporting date equals **Prior FY end date** (e.g. 30/06/2024). Use this column ONLY for PriorYear_Arrears and PriorYear_Advance.
-- **CurrentYearColumn** = the column whose reporting date equals **Current FY end date** (e.g. 30/06/2025). Use this column ONLY for CurrentYear_Arrears and CurrentYear_Advance.
-
-**Step 4 – If you cannot map by date:**
-- If the BS has only one column, or you cannot determine which column corresponds to prior FY end vs current FY end, do NOT guess.
-- Do NOT fill PriorYear_Arrears, PriorYear_Advance, CurrentYear_Arrears, CurrentYear_Advance from an unmapped column.
-- Mark as Not Resolved – Boundary Defined (e.g. in note or completion_outputs.boundary_disclosure).
-
-**Key:** Use **date** to decide which column is Prior Year and which is Current Year. Ignore whether the column is left or right; ignore label wording like "This Year" / "Last Year" – only the **as at date** counts. The field name tells you which column to use.
+**Arrears vs Advance (identify by Dr/Cr):** Levies in Arrears = Debit (Dr) = asset. Levies in Advance = Credit (Cr) = liability. If bs_extract has a single "Levy Receivable" with Cr, treat as Advance.
 `;
 
-/** CRITICAL – Column mapping – the field name tells you which column to use. */
-export const PHASE_2_LEVY_BALANCE_COLUMN_MAP = `
---- CRITICAL – LEVY BALANCE COLUMN MAPPING ---
-Apply this mapping **after** you have identified PriorYearColumn and CurrentYearColumn by date (see COLUMN IDENTIFICATION BY DATE above).
+/** @deprecated – kept for reference; replaced by PHASE_2_BS_EXTRACT_LOOKUP */
+export const PHASE_2_COLUMN_DATE_MAP = "";
 
-**FIELD NAME = COLUMN (字段名 = 列):**
-The field name directly tells you which Balance Sheet column to use:
-- **PriorYear_Arrears** → Prior Year column (上年度列)
-- **PriorYear_Advance** → Prior Year column (上年度列)
-- **CurrentYear_Arrears** → Current Year column (本年度列)
-- **CurrentYear_Advance** → Current Year column (本年度列)
+/** @deprecated – kept for reference; replaced by PHASE_2_BS_EXTRACT_LOOKUP */
+export const PHASE_2_LEVY_BALANCE_COLUMN_MAP = "";
 
-**STRICT MAPPING (严格映射):**
-1. **PriorYear_Arrears** = Prior Year column ONLY
-2. **PriorYear_Advance** = Prior Year column ONLY
-3. **CurrentYear_Arrears** = Current Year column ONLY
-4. **CurrentYear_Advance** = Current Year column ONLY
-
-**PROHIBITED (严格禁止):**
-❌ DO NOT put Prior Year figures into CurrentYear_* fields
-❌ DO NOT put Current Year figures into PriorYear_* fields
-❌ DO NOT swap Arrears and Advance amounts
-
-**Arrears vs Advance (identify by Dr/Cr):** Levies in Arrears = Debit (Dr) = asset (owners owe scheme). Levies in Advance = Credit (Cr) = liability (scheme owes future service). If a single "Levy Receivable" line shows Cr balance, treat as Advance. Do NOT swap Arrears and Advance amounts.
-`;
-
-/** Phase 2 – PRIOR YEAR LEVY BALANCES – Evidence sourcing rule set */
+/** Phase 2 – PRIOR YEAR LEVY BALANCES – from LOCKED bs_extract */
 export const PHASE_2_OPENING_LEVY_RULES_PROMPT = `
---- PHASE 2 – PRIOR YEAR LEVY BALANCES – MANDATORY ---
-RULE SET (ENFORCE): PriorYear_Arrears and PriorYear_Advance MUST be sourced STRICTLY from Prior Year Balance Sheet column. Non-compliance → Not Resolved – Boundary Defined.
+--- PHASE 2 – PRIOR YEAR LEVY BALANCES – MANDATORY (from bs_extract) ---
+PriorYear_Arrears and PriorYear_Advance MUST be looked up from LOCKED bs_extract.rows (use prior_year amounts). Sole permitted source. If bs_extract missing or no matching rows → Not Resolved – Boundary Defined.
 
-**Applicable Line Items (master_table: PriorYear_Arrears, PriorYear_Advance):**
-- Levies in Arrears (Administrative Fund)
-- Levies in Arrears (Capital / Sinking Fund)
-- Levies Paid in Advance (Administrative Fund)
-- Levies Paid in Advance (Capital / Sinking Fund)
-
-**Evidence Requirement (STRICT – Sole Permitted Source):**
-- **Prior Year Balance Sheet column** = the Balance Sheet column as at the end of the prior FY (last day of FY N-1). Acceptable forms: (a) standalone prior-year Financial Statement, or (b) the "Prior Year" / "Comparative" column on the current-year Financial Statement.
-- Validation: balance sheet date MUST agree with intake_summary.financial_year (prior year end). If FY is 01/07/2024–30/06/2025, prior year end = 30/06/2024.
-- Balance direction: Levies in Arrears → Debit (Dr); Levies Paid in Advance → Credit (Cr). If a single "Levy Receivable" shows a credit balance, treat as Advance (prepayment).
-- Fund segregation: Administrative Fund and Capital/Sinking Fund balances must be validated independently. If prior-year BS shows combined figure only, extract it and allocate per notes; if no breakdown exists, document as single figure and note "no fund breakdown on prior-year BS".
-
-**Prohibited Evidence (HARD STOP – Do NOT use for PriorYear_Arrears/PriorYear_Advance):**
-- Levy Position / Arrears Reports
-- Owner / Lot Ledgers
-- Receipts or Cash Collection Reports
-- General Ledger / Trial Balance
-- Financial Statement Notes (alone)
-If not traceable to Prior Year Balance Sheet column, mark as Not Resolved – Boundary Defined.
-
-**Account Name / Terminology Reference (for identification only; evidence remains Prior Year BS column):**
-Levies in Arrears: Levy Arrears, Outstanding Levies, Levy Receivable, Owners Contributions Receivable, Unpaid Levies, Contributions Receivable, Levy Debtors, Maintenance/Sinking Fund Arrears.
+**Account Name / Terminology Reference (for matching rows in bs_extract):**
+Levies in Arrears: Levy Arrears, Outstanding Levies, Levy Receivable, Owners Contributions Receivable, Unpaid Levies, Contributions Receivable, Levy Debtors, Receivable--Levies--Admin, Receivable--Levies--Capital Works.
 Levies in Advance: Levy in Advance, Prepaid Levies, Owners Contributions in Advance, Levy Prepayments, Advance Levy Payments.
-
-**Failure Classification:**
-- Balance not from Prior Year column → Evidence Incomplete
-- Debit/Credit direction inconsistent → Evidence Incomplete
-- Administrative and Capital Funds not separately aligned (when BS has breakdown) → Evidence Incomplete
 `;
 
-/** Phase 2 – CURRENT YEAR LEVY BALANCES – Evidence sourcing rule set */
+/** Phase 2 – CURRENT YEAR LEVY BALANCES – from LOCKED bs_extract */
 export const PHASE_2_CLOSING_LEVY_RULES_PROMPT = `
---- PHASE 2 – CURRENT YEAR LEVY BALANCES – MANDATORY ---
-RULE SET (ENFORCE): CurrentYear_Arrears and CurrentYear_Advance MUST be sourced STRICTLY from Current Year Balance Sheet column. Non-compliance → Not Resolved – Boundary Defined.
+--- PHASE 2 – CURRENT YEAR LEVY BALANCES – MANDATORY (from bs_extract) ---
+CurrentYear_Arrears and CurrentYear_Advance MUST be looked up from LOCKED bs_extract.rows (use current_year amounts). Sole permitted source. If bs_extract missing or no matching rows → Not Resolved – Boundary Defined.
 
-**Applicable Line Items (master_table: CurrentYear_Arrears, CurrentYear_Advance, CurrentYear_Net):**
-- Levies in Arrears (Administrative Fund)
-- Levies in Arrears (Capital / Sinking Fund)
-- Levies Paid in Advance (Administrative Fund)
-- Levies Paid in Advance (Capital / Sinking Fund)
-
-**Evidence Requirement (STRICT – Sole Permitted Source):**
-- **Current Year Balance Sheet column** = the Balance Sheet column as at the end of the audit FY (last day of FY). Use the "Current Year" / "This Year" column; NOT the "Prior Year" / "Comparative" column.
-- Validation: balance sheet date MUST agree with intake_summary.financial_year (current year end).
-- Balance direction: Levies in Arrears → Debit (Dr); Levies Paid in Advance → Credit (Cr). If a single "Levy Receivable" shows a credit balance, treat as Advance (prepayment).
-- Fund segregation: Administrative Fund and Capital/Sinking Fund balances must be validated independently. If current-year BS shows combined figure only, extract it and allocate per notes; if no breakdown exists, document as single figure and note "no fund breakdown on current-year BS".
-
-**Prohibited Evidence (HARD STOP – Do NOT use for CurrentYear_Arrears/CurrentYear_Advance):**
-- Levy Position / Arrears Reports
-- Owner / Lot Ledgers
-- Receipts or Cash Collection Reports
-- General Ledger / Trial Balance
-- Financial Statement Notes (alone)
-If not traceable to Current Year Balance Sheet column, mark as Not Resolved – Boundary Defined.
-
-**Account Name / Terminology Reference (for identification only; evidence remains Current Year BS column):**
-Levies in Arrears: Levy Arrears, Outstanding Levies, Levy Receivable, Owners Contributions Receivable, Unpaid Levies, Contributions Receivable, Levy Debtors, Maintenance/Sinking Fund Arrears.
-Levies in Advance: Levy in Advance, Prepaid Levies, Owners Contributions in Advance, Levy Prepayments, Advance Levy Payments.
-
-**Failure Classification:**
-- Balance not from Current Year column → Evidence Incomplete
-- Debit/Credit direction inconsistent → Evidence Incomplete
-- Administrative and Capital Funds not separately aligned (when BS has breakdown) → Evidence Incomplete
+**Account Name / Terminology Reference (for matching rows in bs_extract):**
+Same as Prior Year – Levies in Arrears, Levy Arrears, Receivable--Levies--Admin, etc. Use current_year (not prior_year) for these fields.
 `;
 
 /** Preferred report types for Admin / Capital Fund receipt summaries (use first when available). */
@@ -277,9 +195,7 @@ function formatPhase2RulesPrompt(): string {
     }
   }
   lines.push("");
-  lines.push(PHASE_2_COLUMN_DATE_MAP);
-  lines.push("");
-  lines.push(PHASE_2_LEVY_BALANCE_COLUMN_MAP);
+  lines.push(PHASE_2_BS_EXTRACT_LOOKUP);
   lines.push("");
   lines.push(PHASE_2_OPENING_LEVY_RULES_PROMPT);
   lines.push("");

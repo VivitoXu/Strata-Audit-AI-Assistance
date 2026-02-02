@@ -23,8 +23,8 @@ Ensure "document_register" and "intake_summary" are fully populated based on the
 **ALL SUBTOTALS AND TOTALS MUST BE CALCULATED BY YOU:** Do not leave calculated rows blank. For every calculated field below, fill amount, note, and computation (method + expression). In "note" state the calculation in words; in "computation.expression" state the formula.
 
 **Required formulas (levy_reconciliation.master_table):**
-- **CRITICAL – Column mapping:** PriorYear_Arrears, PriorYear_Advance = Prior Year column ONLY. CurrentYear_Arrears, CurrentYear_Advance = Current Year column ONLY. The field name tells you which column to use – do NOT swap.
-- **(A) PriorYear_Net** = PriorYear_Arrears - PriorYear_Advance (prior year arrears less advance). **MANDATORY – PriorYear_Arrears and PriorYear_Advance:** Source STRICTLY from Prior-Year Balance Sheet column ONLY. PROHIBITED: Levy Position Reports, Owner Ledgers, GL, FS Notes. Prior-Year column = (a) standalone prior-year FS, or (b) "Prior Year" column on current-year FS. If not traceable → Not Resolved – Boundary Defined.
+- **CRITICAL – BS source:** PriorYear_Arrears, PriorYear_Advance, CurrentYear_Arrears, CurrentYear_Advance MUST be looked up from LOCKED bs_extract ONLY. Do NOT use Levy Reports, GL, or any other source.
+- **(A) PriorYear_Net** = PriorYear_Arrears - PriorYear_Advance. **MANDATORY:** PriorYear_Arrears and PriorYear_Advance = prior_year amounts from bs_extract.rows (match Levies in Arrears / Levies in Advance). If bs_extract missing → Not Resolved – Boundary Defined.
 - **(B1) STANDARD LEVIES:** Sub_Levies_Standard_Admin = Old_Levy_Admin + New_Levy_Admin; Sub_Levies_Standard_Sink = Old_Levy_Sink + New_Levy_Sink; Sub_Levies_Standard = Old_Levy_Total + New_Levy_Total (or Sub_Levies_Standard_Admin + Sub_Levies_Standard_Sink).
 - **(B) SUB-TOTAL (NET) – DO NOT INCLUDE Legal or Other Recovery:** Sub_Admin_Net = Sub_Levies_Standard_Admin + Spec_Levy_Admin + Plus_Interest_Chgd - Less_Discount_Given ONLY (do not add Plus_Legal_Recovery or Plus_Other_Recovery). Sub_Sink_Net = Sub_Levies_Standard_Sink + Spec_Levy_Sink ONLY. Total_Levies_Net = Sub_Admin_Net + Sub_Sink_Net. Do not add them into Sub_Admin_Net, Sub_Sink_Net, or Total_Levies_Net.
 - **Plus_Legal_Recovery and Plus_Other_Recovery – DO NOT EXTRACT:** Do not extract or fill these two fields from evidence. Output amount 0 and note "N/A" or leave note empty for both. They appear in the table for structure only; no data is required.
@@ -32,17 +32,13 @@ Ensure "document_register" and "intake_summary" are fully populated based on the
 - **(D) Total_Gross_Inc** = Total_Levies_Net + Total_GST_Raised (i.e. (D) = (B) + (C)). Period-only; do NOT add (A) into (D).
 - **(E) Effective_Levy_Receipts – Admin & Capital Actual Payments (PRIMARY, REQUIRED):** You MUST use the Admin & Capital Actual Payments method. Actively find (1) **Administrative Fund** receipt/payment summary for the audit FY and (2) **Capital/Sinking Fund** receipt/payment summary for the audit FY, prefer **Cash management report** when available; otherwise from the whitelist (Levy Receipts Report, Levy Summary by Fund, Fund Ledger – Admin/Capital, Contribution Report, etc.). Output **Admin_Fund_Receipts** (Administrative Fund receipts total for the FY) and **Capital_Fund_Receipts** (Capital/Sinking Fund receipts total for the FY) as separate TraceableValue fields. **Total_Receipts_Global** = Admin_Fund_Receipts.amount + Capital_Fund_Receipts.amount. **Effective_Levy_Receipts** = Total_Receipts_Global. Do NOT output or use Non_Levy_Income. If a single combined receipt summary segregates Admin and Capital, extract each fund total separately into Admin_Fund_Receipts and Capital_Fund_Receipts. If neither Admin & Capital fund-specific reports nor a combined summary with fund segregation is available → Not Resolved – Boundary Defined.
 - **(=) Calc_Closing** = PriorYear_Net + Total_Gross_Inc - Effective_Levy_Receipts (i.e. A + D - E).
-- **(G) CurrentYear_Net** = CurrentYear_Arrears - CurrentYear_Advance. **MANDATORY – CurrentYear_Arrears and CurrentYear_Advance:** Source STRICTLY from Current-Year Balance Sheet column ONLY. Use "Current Year" column; NOT "Prior Year". The field name tells you which column to use. PROHIBITED: Levy Position Reports, Owner Ledgers, GL, FS Notes. If not traceable → Not Resolved – Boundary Defined.
+- **(G) CurrentYear_Net** = CurrentYear_Arrears - CurrentYear_Advance. **MANDATORY:** CurrentYear_Arrears and CurrentYear_Advance = current_year amounts from bs_extract.rows. PROHIBITED: Any source other than bs_extract. If not traceable → Not Resolved – Boundary Defined.
 - **Levy_Variance** = Calc_Closing - CurrentYear_Net.
 
 **ASSETS_AND_CASH (PHASE 4 – FULL BALANCE SHEET VERIFICATION – MANDATORY rule enforcement):**
-- **CRITICAL – bs_amount & line_item SOURCE:** line_item and bs_amount MUST be copied from the **Balance Sheet (Financial Statement)** ONLY. Use LOCKED Step 0 core_data_positions.balance_sheet and bs_column_mapping to locate the Balance Sheet document and Current Year column; use bs_structure as the mandatory list of rows. Copy bs_amount ONLY from that FS Balance Sheet (Current Year column). **PROHIBITED:** Do NOT use GL, Levy Report, ledger, TB, or any non-BS document for bs_amount or line_item. **supporting_amount** = verification evidence ONLY from non-BS sources per R2–R5 (Bank Stmt, Levy Report, breakdown report, GL). **PROHIBITED:** Do NOT use the Balance Sheet as source for supporting_amount.
-- **CRITICAL – COLUMN ANCHORING (MANDATORY):** For EVERY line item in balance_sheet_verification, you MUST:
-  1. Use bs_column_mapping.current_year_label to identify the Current Year column on the Balance Sheet (e.g., "2024", "30/06/2024", "Current Year").
-  2. Output a "year_column" field with the EXACT value of bs_column_mapping.current_year_label for every line item.
-  3. In the "note" field, explicitly state: "From BS column '{current_year_label}'" (e.g., "From BS column '2024'").
-  4. **PROHIBITED:** Do NOT use bs_column_mapping.prior_year_label for any line item except RULE 1 (Owners Funds at Start). If RULE 1 uses Prior Year, output year_column = bs_column_mapping.prior_year_label and note = "From BS column '{prior_year_label}' (Prior Year closing for roll-forward)".
-- **CRITICAL – COMPLETENESS:** balance_sheet_verification MUST include EVERY line item on the Balance Sheet – Owners Equity, Assets, Liabilities. Do NOT omit. Every BS row = one output row.
+- **CRITICAL – bs_amount & line_item SOURCE:** MUST be looked up from LOCKED Step 0 bs_extract ONLY. Do NOT re-read the Balance Sheet PDF. For each row in bs_extract.rows, output one balance_sheet_verification row. bs_amount = current_year (or prior_year for RULE 1 "Owners Funds at Start" only). **PROHIBITED:** Do NOT use GL, Levy Report, or any non-bs_extract source for bs_amount or line_item. **supporting_amount** = verification evidence from R2–R5 (Bank Stmt, Levy Report, breakdown, GL) – NOT from Balance Sheet.
+- **year_column:** Use bs_extract.current_year_label (or prior_year_label for RULE 1 only).
+- **note:** "BS: From bs_extract current_year" (or "prior_year for roll-forward" for RULE 1).
 - **AUDIT PERIOD ANCHOR (global – intake_summary.financial_year):** Use CURRENT YEAR column for all amounts. Prior Year column ONLY for RULE 1 roll-forward.
 - **CRITICAL – CURRENT YEAR ONLY:** Do NOT extract from Prior Year column except RULE 1.
 - **balance_sheet_verification**: MANDATORY array. You MUST apply Phase 4 rules (R1–R5) strictly per line type.
@@ -50,15 +46,13 @@ Ensure "document_register" and "intake_summary" are fully populated based on the
   - **Levy Arrears, Levies in Advance (RULE 3):** supporting_amount from Tier 2 Levy Position Report. If only GL → status = "TIER_3_ONLY".
   - **Accrued/Prepaid/Creditors (RULE 4):** supporting_amount from Tier 2 breakdown report. If only GL → status = "MISSING_BREAKDOWN".
   - **Other (RULE 5):** supporting_amount from GL.
-- For each line: { "line_item", "section", "fund", "bs_amount" (from BS only – MUST be from Balance Sheet FS CURRENT YEAR column; NOT from GL/ledger/summary), "year_column" (MANDATORY – exact value from bs_column_mapping.current_year_label), "supporting_amount" (from R2–R5 only – Bank Stmt, Levy Report, breakdown, GL; NOT from Balance Sheet), "evidence_ref" (Doc_ID/Page for traceability), "status", "note" }.
-- **NOTE (AI explanation holder – same as Table E.Master):** For every line item, you MUST generate a "note" that INCLUDES the column label (e.g., "From BS column '2024'", "Bank Statement p.2 as at FY end", "Levy Position Report p.1", "GL Cash reconciled"). Same purpose as Table E.Master Note/Source – human-readable AI explanation. evidence_ref is for Doc_ID/Page; note is for explanation.
+- For each line: { "line_item", "section", "fund", "bs_amount", "year_column", "supporting_amount", "evidence_ref", "status", "note", "supporting_note" }.
+- **note** = bs_amount source ONLY (e.g. "From BS column '2024'"). Do NOT include supporting evidence. Used for BS Amount ForensicCell.
+- **supporting_note** = supporting_amount source ONLY (e.g. "Matches Bank Statement p.2", "Matches Macquarie Investment Account Statement 2036-74072"). Do NOT include "From BS column". Used for Supporting ForensicCell.
 
 **MANDATORY – OLD RATE LEVIES / NEW RATE LEVIES (Phase 2 rules levy_old_new_levies_source, levy_old_new_rate, levy_financial_year):** Source ONLY from minutes. You MUST time-apportion Old Rate Levies and New Rate Levies by the strata plan’s financial year. First, determine the plan’s financial year (start and end dates) from minutes; anchor your search in the section that appears after the title "Audit Execution Report" and near the strata plan name (e.g. scheme name, address, or plan number), and write to intake_summary.financial_year. Use intake_summary.financial_year (or the FY you extracted) for all phases. Use that FY to define quarters. Then split levies between Old Rate and New Rate by the date the new rate was adopted (from minutes). For each quarter (or part-quarter) in the FY, assign levy to Old or New by proportion (e.g. days or months in that quarter at old rate vs new rate). For every Old_Levy_* and New_Levy_* figure, you MUST fill "note" and, if calculated, "computation" explaining: FY used (source: minutes), quarter boundaries, minutes date for rate change, and the proportion applied (e.g. "Q1 100% old; Q2 60% old 40% new; FY from Report header"). source_doc_id and page_ref must cite minutes only.
 
-**Field source mapping (levy_reconciliation.master_table):** The field name tells you which Balance Sheet column to use:
-- **PriorYear_Arrears, PriorYear_Advance** → Prior Year Balance Sheet column (= Opening Balance at start of FY)
-- **CurrentYear_Arrears, CurrentYear_Advance** → Current Year Balance Sheet column (= Closing Balance at end of FY)
-Arrears = Dr (asset); Advance = Cr (liability).
+**Field source (levy_reconciliation.master_table – PriorYear_*/CurrentYear_*):** Look up from LOCKED bs_extract.rows: PriorYear_* = prior_year; CurrentYear_* = current_year. Arrears = Dr (asset); Advance = Cr (liability).
 
 JSON SCHEMA:
 {
@@ -83,12 +77,19 @@ JSON SCHEMA:
     "manager_limit": "Number (optional – from Agency Agreement / Minutes)",
     "agm_limit": "Number (optional – from AGM Minutes)"
   },
+  "bs_extract": {
+    "prior_year_label": "String",
+    "current_year_label": "String",
+    "rows": [
+      { "line_item": "String", "section": "OWNERS_EQUITY|ASSETS|LIABILITIES", "fund": "Admin|Capital|N/A", "prior_year": Number, "current_year": Number }
+    ]
+  },
   "levy_reconciliation": {
     "master_table": {
        "Source_Doc_ID": "String",
        "AGM_Date": "String",
-       "PriorYear_Arrears": { "amount": Number, "source_doc_id": "String", "page_ref": "String", "note": "String (from Prior Year BS column)", "verbatim_quote": "String" },
-       "PriorYear_Advance": { "amount": Number, "source_doc_id": "String", "page_ref": "String", "note": "String (from Prior Year BS column)", "verbatim_quote": "String" },
+       "PriorYear_Arrears": { "amount": Number, "source_doc_id": "String", "page_ref": "String", "note": "String (from bs_extract prior_year)", "verbatim_quote": "String" },
+       "PriorYear_Advance": { "amount": Number, "source_doc_id": "String", "page_ref": "String", "note": "String (from bs_extract prior_year)", "verbatim_quote": "String" },
        "PriorYear_Net": { "amount": Number, "source_doc_id": "String", "page_ref": "String", "note": "String", "computation": { "method": "String", "expression": "String" } },
        "Old_Levy_Admin": { "amount": Number, "source_doc_id": "String", "page_ref": "String", "note": "String", "verbatim_quote": "String" },
        "Old_Levy_Sink": { "amount": Number, "source_doc_id": "String", "page_ref": "String", "note": "String", "verbatim_quote": "String" },
@@ -119,8 +120,8 @@ JSON SCHEMA:
        "Total_Receipts_Global": { "amount": Number, "source_doc_id": "String", "page_ref": "String", "note": "String", "computation": { "method": "String", "expression": "String" } },
        "Effective_Levy_Receipts": { "amount": Number, "source_doc_id": "String", "page_ref": "String", "note": "String", "computation": { "method": "String", "expression": "String" } },
        "Calc_Closing": { "amount": Number, "source_doc_id": "String", "page_ref": "String", "note": "String", "computation": { "method": "String", "expression": "String" } },
-       "CurrentYear_Arrears": { "amount": Number, "source_doc_id": "String", "page_ref": "String", "note": "String (from Current Year BS column)", "verbatim_quote": "String" },
-       "CurrentYear_Advance": { "amount": Number, "source_doc_id": "String", "page_ref": "String", "note": "String (from Current Year BS column)", "verbatim_quote": "String" },
+       "CurrentYear_Arrears": { "amount": Number, "source_doc_id": "String", "page_ref": "String", "note": "String (from bs_extract current_year)", "verbatim_quote": "String" },
+       "CurrentYear_Advance": { "amount": Number, "source_doc_id": "String", "page_ref": "String", "note": "String (from bs_extract current_year)", "verbatim_quote": "String" },
        "CurrentYear_Net": { "amount": Number, "source_doc_id": "String", "page_ref": "String", "note": "String", "computation": { "method": "String", "expression": "String" } },
        "Levy_Variance": { "amount": Number, "source_doc_id": "String", "page_ref": "String", "note": "String", "computation": { "method": "String", "expression": "String" } }
     },
@@ -128,7 +129,7 @@ JSON SCHEMA:
   },
   "assets_and_cash": {
     "balance_sheet_verification": [
-      { "line_item": "String", "section": "OWNERS_EQUITY|ASSETS|LIABILITIES", "fund": "Admin|Capital|N/A", "bs_amount": Number, "year_column": "String (MANDATORY – exact value from bs_column_mapping.current_year_label, e.g. '2024' or 'Current Year')", "supporting_amount": Number, "evidence_ref": "Doc_ID/Page (traceability)", "status": "VERIFIED|VARIANCE|MISSING_BANK_STMT|TIER_3_ONLY|MISSING_LEVY_REPORT|MISSING_BREAKDOWN|NO_SUPPORT|GL_SUPPORTED_ONLY", "note": "AI explanation (MUST include column label – e.g. 'From BS column 2024', 'Bank Statement p.2 as at FY end')" }
+      { "line_item": "String", "section": "OWNERS_EQUITY|ASSETS|LIABILITIES", "fund": "Admin|Capital|N/A", "bs_amount": Number, "year_column": "String (MANDATORY)", "supporting_amount": Number, "evidence_ref": "Doc_ID/Page", "status": "VERIFIED|VARIANCE|MISSING_BANK_STMT|TIER_3_ONLY|MISSING_LEVY_REPORT|MISSING_BREAKDOWN|NO_SUPPORT|GL_SUPPORTED_ONLY|SUBTOTAL_CHECK_ONLY", "note": "bs_amount from bs_extract (e.g. 'From bs_extract current_year')", "supporting_note": "supporting_amount source ONLY – e.g. 'Matches Bank Statement p.2' (do NOT include 'From BS column')" }
     ]
   },
   "expense_samples": [

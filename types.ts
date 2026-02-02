@@ -9,6 +9,8 @@ export type {
   CoreDataPositions,
   BsColumnMapping,
   BsStructureItem,
+  BsExtract,
+  BsExtractRow,
   TraceableValue,
   LevyRecMaster,
   HighRiskDebtor,
