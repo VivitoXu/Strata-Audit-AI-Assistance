@@ -1,11 +1,18 @@
 import React from 'react';
 
+interface FileMetaEntry {
+  uploadedAt: number;
+  batch: "initial" | "additional";
+}
+
 interface FileUploadProps {
   onFilesSelected: (files: File[]) => void;
   selectedFiles: File[];
+  fileMeta?: FileMetaEntry[];
+  planCreatedAt?: number;
 }
 
-export const FileUpload: React.FC<FileUploadProps> = ({ onFilesSelected, selectedFiles }) => {
+export const FileUpload: React.FC<FileUploadProps> = ({ onFilesSelected, selectedFiles, fileMeta, planCreatedAt }) => {
   const handleFileChange = (event: React.ChangeEvent<HTMLInputElement>) => {
     if (event.target.files) {
       const newFiles = Array.from(event.target.files);
@@ -58,26 +65,43 @@ export const FileUpload: React.FC<FileUploadProps> = ({ onFilesSelected, selecte
       </div>
 
       {selectedFiles.length > 0 && (
-        <div className="mt-4 grid grid-cols-1 sm:grid-cols-2 gap-3">
-          {selectedFiles.map((file, index) => (
-            <div
-              key={index}
-              className="flex items-center justify-between p-3 bg-white border border-gray-200 rounded shadow-sm hover:border-[#C5A059] transition-colors"
-            >
-              <div className="flex items-center space-x-3 truncate">
-                <span className="text-[10px] bg-[#C5A059] text-black px-1.5 py-0.5 font-bold uppercase tracking-widest rounded-sm">
-                  {file.name.split('.').pop()?.toUpperCase()}
-                </span>
-                <span className="text-xs text-gray-800 font-medium truncate">{file.name}</span>
-              </div>
-              <button
-                onClick={() => removeFile(index)}
-                className="text-gray-400 hover:text-red-600 p-1 transition-colors"
+        <div className="mt-4 space-y-2">
+          {selectedFiles.map((file, index) => {
+            const meta = fileMeta?.[index] ?? { uploadedAt: planCreatedAt ?? Date.now(), batch: "initial" as const };
+            const uploadTime = new Date(meta.uploadedAt).toLocaleString('en-AU', { 
+              day: '2-digit', month: '2-digit', year: 'numeric', hour: '2-digit', minute: '2-digit' 
+            });
+            return (
+              <div
+                key={index}
+                className="flex items-center justify-between p-3 bg-white border border-gray-200 rounded shadow-sm hover:border-[#C5A059] transition-colors group"
               >
-                ✕
-              </button>
-            </div>
-          ))}
+                <div className="flex items-center space-x-3 flex-1 min-w-0">
+                  <span className="text-[10px] bg-[#C5A059] text-black px-1.5 py-0.5 font-bold uppercase tracking-widest rounded-sm shrink-0">
+                    {file.name.split('.').pop()?.toUpperCase()}
+                  </span>
+                  <div className="flex flex-col min-w-0 flex-1">
+                    <span className="text-xs text-gray-800 font-medium truncate">{file.name}</span>
+                    <div className="flex items-center gap-2 mt-1">
+                      <span className={`text-[9px] px-1.5 py-0.5 rounded font-bold uppercase tracking-wider ${
+                        meta.batch === 'initial' ? 'bg-blue-100 text-blue-800' : 'bg-purple-100 text-purple-800'
+                      }`}>
+                        {meta.batch === 'initial' ? 'Initial' : 'Additional'}
+                      </span>
+                      <span className="text-[10px] text-gray-400 font-mono">{uploadTime}</span>
+                    </div>
+                  </div>
+                </div>
+                <button
+                  onClick={() => removeFile(index)}
+                  className="text-gray-400 hover:text-red-600 p-1 transition-colors shrink-0"
+                  title="Remove file"
+                >
+                  ✕
+                </button>
+              </div>
+            );
+          })}
         </div>
       )}
     </div>

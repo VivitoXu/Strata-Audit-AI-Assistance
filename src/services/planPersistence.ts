@@ -20,12 +20,18 @@ import type { Firestore } from "firebase/firestore";
 import type { AuditResponse } from "../audit_outputs/type_definitions";
 import type { TriageItem } from "../audit_outputs/type_definitions";
 
+export interface FileMetaEntry {
+  uploadedAt: number;
+  batch: "initial" | "additional";
+}
+
 export interface PlanDoc {
   userId: string;
   name: string;
   createdAt: number;
   status: string;
   filePaths?: string[];
+  fileMeta?: FileMetaEntry[];
   result?: AuditResponse | null;
   triage?: TriageItem[];
   error?: string | null;
@@ -61,8 +67,20 @@ export async function uploadPlanFiles(
 }
 
 /**
+ * 移除对象中值为 undefined 的键，避免 Firestore setDoc 报错。
+ */
+function omitUndefined<T extends Record<string, unknown>>(obj: T): Record<string, unknown> {
+  const out: Record<string, unknown> = {};
+  for (const [k, v] of Object.entries(obj)) {
+    if (v !== undefined) out[k] = v;
+  }
+  return out;
+}
+
+/**
  * 将计划（含 AI 结果）写入 Firestore plans/{planId}。
  * 规则要求文档含 userId，且仅创建者可读写。
+ * 写入前会剔除 undefined 字段，避免 Firestore 报 Unsupported field value。
  */
 export async function savePlanToFirestore(
   db: Firestore,
@@ -70,10 +88,11 @@ export async function savePlanToFirestore(
   data: PlanDoc
 ): Promise<void> {
   const docRef = doc(db, "plans", planId);
-  await setDoc(docRef, {
+  const payload = omitUndefined({
     ...data,
     updatedAt: Date.now(),
-  }, { merge: true });
+  });
+  await setDoc(docRef, payload, { merge: true });
 }
 
 /**

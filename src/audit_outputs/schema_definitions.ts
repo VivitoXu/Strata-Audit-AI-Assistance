@@ -43,11 +43,12 @@ export const IntakeSummarySchema = z.object({
 export const LevyRecMasterSchema = z.object({
   Source_Doc_ID: z.string(),
   AGM_Date: z.string(),
-  /** OPENING – Prior Year BS. note MUST contain "Prior Year" or "prior year closing". */
-  Op_Arrears: TraceableValueSchema,
-  /** OPENING – Prior Year BS. note MUST contain "Prior Year" or "prior year closing". */
-  Op_Advance: TraceableValueSchema,
-  Net_Opening_Bal: TraceableValueSchema,
+  /** PRIOR YEAR COLUMN – Levies in Arrears from Prior Year Balance Sheet column. */
+  PriorYear_Arrears: TraceableValueSchema,
+  /** PRIOR YEAR COLUMN – Levies in Advance from Prior Year Balance Sheet column. */
+  PriorYear_Advance: TraceableValueSchema,
+  /** Net Prior Year Levy Position = PriorYear_Arrears - PriorYear_Advance. */
+  PriorYear_Net: TraceableValueSchema,
   Old_Levy_Admin: TraceableValueSchema,
   Old_Levy_Sink: TraceableValueSchema,
   Old_Levy_Total: TraceableValueSchema,
@@ -78,11 +79,12 @@ export const LevyRecMasterSchema = z.object({
   Non_Levy_Income: TraceableValueSchema.optional(),
   Effective_Levy_Receipts: TraceableValueSchema,
   Calc_Closing: TraceableValueSchema,
-  /** CLOSING – Current Year BS. note MUST contain "Current Year" or "current year closing". */
-  BS_Arrears: TraceableValueSchema,
-  /** CLOSING – Current Year BS. note MUST contain "Current Year" or "current year closing". */
-  BS_Advance: TraceableValueSchema,
-  BS_Closing: TraceableValueSchema,
+  /** CURRENT YEAR COLUMN – Levies in Arrears from Current Year Balance Sheet column. */
+  CurrentYear_Arrears: TraceableValueSchema,
+  /** CURRENT YEAR COLUMN – Levies in Advance from Current Year Balance Sheet column. */
+  CurrentYear_Advance: TraceableValueSchema,
+  /** Net Current Year Levy Position = CurrentYear_Arrears - CurrentYear_Advance. */
+  CurrentYear_Net: TraceableValueSchema,
   Levy_Variance: TraceableValueSchema,
 });
 

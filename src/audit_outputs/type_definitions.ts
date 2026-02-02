@@ -78,11 +78,12 @@ export interface TraceableValue {
 export interface LevyRecMaster {
   Source_Doc_ID: string;
   AGM_Date: string;
-  /** OPENING BALANCE – Levies in Arrears at START of FY (from Prior Year BS closing). note MUST mention "Prior Year" or "prior year closing". */
-  Op_Arrears: TraceableValue;
-  /** OPENING BALANCE – Levies in Advance at START of FY (from Prior Year BS closing). note MUST mention "Prior Year" or "prior year closing". */
-  Op_Advance: TraceableValue;
-  Net_Opening_Bal: TraceableValue;
+  /** PRIOR YEAR COLUMN – Levies in Arrears from Prior Year Balance Sheet column (= Opening Balance at START of FY). */
+  PriorYear_Arrears: TraceableValue;
+  /** PRIOR YEAR COLUMN – Levies in Advance from Prior Year Balance Sheet column (= Opening Balance at START of FY). */
+  PriorYear_Advance: TraceableValue;
+  /** Net Prior Year Levy Position = PriorYear_Arrears - PriorYear_Advance (= Net Opening Balance). */
+  PriorYear_Net: TraceableValue;
   Old_Levy_Admin: TraceableValue;
   Old_Levy_Sink: TraceableValue;
   Old_Levy_Total: TraceableValue;
@@ -117,11 +118,12 @@ export interface LevyRecMaster {
   Non_Levy_Income?: TraceableValue;
   Effective_Levy_Receipts: TraceableValue;
   Calc_Closing: TraceableValue;
-  /** CLOSING BALANCE – Levies in Arrears at END of FY (from Current Year BS closing). note MUST mention "Current Year" or "current year closing". */
-  BS_Arrears: TraceableValue;
-  /** CLOSING BALANCE – Levies in Advance at END of FY (from Current Year BS closing). note MUST mention "Current Year" or "current year closing". */
-  BS_Advance: TraceableValue;
-  BS_Closing: TraceableValue;
+  /** CURRENT YEAR COLUMN – Levies in Arrears from Current Year Balance Sheet column (= Closing Balance at END of FY). */
+  CurrentYear_Arrears: TraceableValue;
+  /** CURRENT YEAR COLUMN – Levies in Advance from Current Year Balance Sheet column (= Closing Balance at END of FY). */
+  CurrentYear_Advance: TraceableValue;
+  /** Net Current Year Levy Position = CurrentYear_Arrears - CurrentYear_Advance (= Balance Sheet Closing). */
+  CurrentYear_Net: TraceableValue;
   Levy_Variance: TraceableValue;
 }
 
@@ -336,6 +338,12 @@ export interface TriageItem {
 
 export type PlanStatus = "idle" | "processing" | "completed" | "failed";
 
+/** Per-file metadata for document timeline and batch (initial vs additional evidence) */
+export interface FileMetaEntry {
+  uploadedAt: number;
+  batch: "initial" | "additional";
+}
+
 export interface Plan {
   id: string;
   name: string;
@@ -344,6 +352,8 @@ export interface Plan {
   files: File[];
   /** Storage paths for files (used when loading from Firestore to restore PDF preview) */
   filePaths?: string[];
+  /** Per-file: upload time and batch (parallel to files by index) */
+  fileMeta?: FileMetaEntry[];
   result: AuditResponse | null;
   triage: TriageItem[];
   error: string | null;

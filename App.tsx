@@ -9,7 +9,22 @@ import { auth, db, storage, hasValidFirebaseConfig } from './services/firebase';
 import { uploadPlanFiles, savePlanToFirestore, deletePlanFilesFromStorage, deletePlanFromFirestore, getPlansFromFirestore, loadPlanFilesFromStorage } from './services/planPersistence';
 import type { User } from 'firebase/auth';
 import { onAuthStateChanged, signInWithPopup, GoogleAuthProvider, signOut, signInWithEmailAndPassword, createUserWithEmailAndPassword } from 'firebase/auth';
-import { Plan, PlanStatus, TriageItem } from './types';
+import { Plan, PlanStatus, TriageItem, FileMetaEntry } from './types';
+
+/** Reconcile fileMeta when files change: keep meta for kept files, add 'additional' for new files */
+function reconcileFileMeta(
+  prevFiles: File[],
+  newFiles: File[],
+  prevMeta: FileMetaEntry[] | undefined,
+  batchForNew: 'initial' | 'additional'
+): FileMetaEntry[] {
+  const prevNames = new Set(prevFiles.map(f => f.name));
+  return newFiles.map(f => {
+    const idx = prevFiles.findIndex(pf => pf.name === f.name);
+    if (idx >= 0 && prevMeta?.[idx]) return prevMeta[idx];
+    return { uploadedAt: Date.now(), batch: batchForNew };
+  });
+}
 
 const App: React.FC = () => {
   // Global App State
@@ -49,6 +64,7 @@ const App: React.FC = () => {
           status: (p.status as PlanStatus) || 'idle',
           files: [],
           filePaths: p.filePaths,
+          fileMeta: p.fileMeta ?? [],
           result: p.result ?? null,
           triage: p.triage ?? [],
           error: p.error ?? null,
@@ -72,7 +88,10 @@ const App: React.FC = () => {
       try {
         const loaded = await loadPlanFilesFromStorage(storage, activePlan.filePaths!);
         if (!cancelled && loaded.length > 0) {
-          updatePlan(activePlan.id, { files: loaded });
+          const meta = activePlan.fileMeta && activePlan.fileMeta.length === loaded.length
+            ? activePlan.fileMeta
+            : loaded.map(() => ({ uploadedAt: activePlan!.createdAt, batch: "initial" as const }));
+          updatePlan(activePlan.id, { files: loaded, fileMeta: meta });
         }
       } catch (_) {
         // Ignore load errors
@@ -115,14 +134,16 @@ const App: React.FC = () => {
     });
     try {
       const filePaths = await uploadPlanFiles(storage, firebaseUser.uid, id, files);
+      const fileMeta: FileMetaEntry[] = files.map(() => ({ uploadedAt: Date.now(), batch: "initial" }));
       await savePlanToFirestore(db, id, {
         userId: firebaseUser.uid,
         name: planName,
         createdAt,
         status: "idle",
         filePaths,
+        fileMeta,
       });
-      updatePlan(id, { filePaths });
+      updatePlan(id, { filePaths, fileMeta });
     } catch (_) {
       updatePlan(id, { error: "Failed to save files." });
     }
@@ -238,6 +259,7 @@ const App: React.FC = () => {
         ...baseDoc,
         status: "completed",
         filePaths,
+        fileMeta: targetPlan.fileMeta,
         result: merged,
         triage: targetPlan.triage,
       });
@@ -252,6 +274,7 @@ const App: React.FC = () => {
         ...baseDoc,
         status: "failed",
         ...(filePaths.length > 0 ? { filePaths } : {}),
+        fileMeta: targetPlan.fileMeta,
         error: errMessage,
       });
       setPlans((prev) =>
@@ -289,6 +312,7 @@ const App: React.FC = () => {
         ...baseDoc,
         status: 'completed',
         filePaths,
+        fileMeta: targetPlan.fileMeta,
         result: auditResult,
         triage: targetPlan.triage,
       });
@@ -299,6 +323,7 @@ const App: React.FC = () => {
         ...baseDoc,
         status: 'failed',
         ...(filePaths.length > 0 ? { filePaths } : {}),
+        fileMeta: targetPlan.fileMeta,
         error: errMessage,
       });
       setPlans(prev => prev.map(p => p.id === planId ? { ...p, status: 'failed' as const, error: errMessage } : p));
@@ -345,6 +370,7 @@ const App: React.FC = () => {
         ...baseDoc,
         status: 'completed',
         filePaths,
+        fileMeta: targetPlan.fileMeta,
         result: auditResult,
         triage: targetPlan.triage,
       });
@@ -362,6 +388,7 @@ const App: React.FC = () => {
         ...baseDoc,
         status: 'failed',
         ...(filePaths.length > 0 ? { filePaths } : {}),
+        fileMeta: targetPlan.fileMeta,
         error: errMessage,
       });
       setPlans(currentPlans => {
@@ -399,9 +426,14 @@ const App: React.FC = () => {
         );
         
         if (newFiles.length > 0) {
-            if (activePlanId) {
-                const currentFiles = activePlan?.files || [];
-                updatePlan(activePlanId, { files: [...currentFiles, ...newFiles] });
+            if (activePlanId && activePlan) {
+                const currentFiles = activePlan.files || [];
+                const currentMeta = activePlan.fileMeta || [];
+                const addedMeta: FileMetaEntry[] = newFiles.map(() => ({ uploadedAt: Date.now(), batch: "additional" }));
+                updatePlan(activePlanId, {
+                  files: [...currentFiles, ...newFiles],
+                  fileMeta: [...currentMeta, ...addedMeta],
+                });
             } else {
                 setCreateDraft((d) => ({
                   name: d.name || newFiles[0]?.name.split('.')[0] || "",
@@ -860,15 +892,24 @@ const App: React.FC = () => {
                 </div>
               )}
 
-              {/* Files section (collapsible) */}
-              <details className="mt-6 shrink-0" open>
-                <summary className="cursor-pointer text-xs font-bold text-gray-600 uppercase tracking-widest flex items-center gap-2">
+              {/* Files section (collapsible with timeline) */}
+              <details className="mt-6 shrink-0 group" open>
+                <summary className="cursor-pointer text-xs font-bold text-gray-600 uppercase tracking-widest flex items-center gap-2 hover:text-[#C5A059] transition-colors p-3 bg-white border border-gray-200 rounded">
+                  <svg className="w-4 h-4 transition-transform group-open:rotate-180" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M19 9l-7 7-7-7"></path>
+                  </svg>
                   <span>Evidence Files ({activePlan.files.length})</span>
+                  <span className="text-[10px] text-gray-400 font-normal ml-2">Click to expand/collapse</span>
                 </summary>
                 <div className="mt-4 p-4 bg-white rounded border border-gray-200">
                   <FileUpload
-                    onFilesSelected={(newFiles) => updatePlan(activePlan.id, { files: newFiles })}
+                    onFilesSelected={(newFiles) => {
+                      const newMeta = reconcileFileMeta(activePlan.files, newFiles, activePlan.fileMeta, "additional");
+                      updatePlan(activePlan.id, { files: newFiles, fileMeta: newMeta });
+                    }}
                     selectedFiles={activePlan.files}
+                    fileMeta={activePlan.fileMeta}
+                    planCreatedAt={activePlan.createdAt}
                   />
                 </div>
               </details>

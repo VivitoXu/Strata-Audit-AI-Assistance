@@ -31,4 +31,5 @@ export type {
   TriageItem,
   PlanStatus,
   Plan,
+  FileMetaEntry,
 } from "./src/audit_outputs/type_definitions";

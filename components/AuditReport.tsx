@@ -317,6 +317,41 @@ interface ExpenseForensicPayload {
   extracted_amount?: number;
 }
 
+/** Map common abbreviations to Document_Type for expense forensic resolution */
+const DOC_TYPE_ALIASES: Record<string, string> = {
+  BS: 'Bank Statement',
+  GL: 'General Ledger',
+  CM: 'Committee Minutes',
+  AGM: 'AGM Minutes',
+  FS: 'Financial Statement',
+};
+
+/** Resolve document from source_doc_id – Document_ID, Origin_Name, Document_Type, and abbreviations */
+function resolveDocForExpense(safeDocs: DocumentEntry[], sourceDocId: string): DocumentEntry | undefined {
+  if (!sourceDocId?.trim()) return undefined;
+  const id = sourceDocId.trim();
+  const baseId = id.split(/[,/|]/)[0]?.trim() || id;
+  let doc = safeDocs.find(d => d.Document_ID === id);
+  if (doc) return doc;
+  doc = safeDocs.find(d => d.Document_Origin_Name === id || d.Document_Name === id);
+  if (doc) return doc;
+  doc = safeDocs.find(d => d.Document_Origin_Name === baseId || d.Document_Name === baseId);
+  if (doc) return doc;
+  doc = safeDocs.find(d => d.Document_Type?.toLowerCase() === id.toLowerCase());
+  if (doc) return doc;
+  doc = safeDocs.find(d => d.Document_Type?.toLowerCase() === baseId.toLowerCase());
+  if (doc) return doc;
+  const resolvedType = DOC_TYPE_ALIASES[baseId] || DOC_TYPE_ALIASES[id] || baseId;
+  doc = safeDocs.find(d => d.Document_Type?.toLowerCase() === resolvedType.toLowerCase());
+  return doc;
+}
+
+/** Find File by name (exact then case-insensitive) */
+function findFileByName(files: File[], name: string): File | undefined {
+  if (!name || name === 'N/A' || name === '') return undefined;
+  return files.find(f => f.name === name) ?? files.find(f => f.name.toLowerCase() === name.toLowerCase());
+}
+
 /** Forensic popover for expense INV/PAY/AUTH/FUND – same layout as ForensicCell: Source Document, Doc ID, Extracted, Context/Note, View in PDF */
 const ExpenseForensicPopover: React.FC<{
   payload: ExpenseForensicPayload;
@@ -327,11 +362,9 @@ const ExpenseForensicPopover: React.FC<{
   const [showPdfModal, setShowPdfModal] = useState(false);
   const [pdfUrl, setPdfUrl] = useState<string | null>(null);
   const safeDocs = docs || [];
-  let doc = safeDocs.find(d => d.Document_ID === payload.source_doc_id);
-  if (!doc && payload.source_doc_id) {
-    doc = safeDocs.find(d => d.Document_Origin_Name === payload.source_doc_id || d.Document_Name === payload.source_doc_id);
-  }
-  const targetFile = doc ? files.find(f => f.name === doc!.Document_Origin_Name) : files.find(f => f.name === payload.source_doc_id);
+  const doc = resolveDocForExpense(safeDocs, payload.source_doc_id);
+  const originName = doc?.Document_Origin_Name;
+  const targetFile = originName ? findFileByName(files, originName) : findFileByName(files, payload.source_doc_id);
 
   const handleOpenPdf = () => {
     if (!targetFile) {
@@ -398,13 +431,18 @@ const ExpenseForensicPopover: React.FC<{
               <span className="text-[12px] uppercase text-gray-400 font-bold block mb-1 tracking-widest">Context / Note</span>
               <div className="text-[13px] text-gray-600 italic">{payload.note || '–'}</div>
             </div>
-            {targetFile && (
-              <div className="pt-2">
-                <button onClick={handleOpenPdf} className="w-full flex items-center justify-center gap-2 bg-black text-white hover:bg-[#C5A059] py-2 text-[12px] font-bold uppercase tracking-wider rounded-sm">
-                  View source document in PDF
-                </button>
-              </div>
-            )}
+            <div className="pt-2">
+              <button
+                onClick={handleOpenPdf}
+                className={`w-full flex items-center justify-center gap-2 py-2 text-[12px] font-bold uppercase tracking-wider rounded-sm transition-colors ${
+                  targetFile ? 'bg-black text-white hover:bg-[#C5A059]' : 'bg-gray-300 text-gray-500 cursor-not-allowed'
+                }`}
+                disabled={!targetFile}
+                title={!targetFile ? 'Source file not found – ensure evidence was uploaded and document is in the register' : undefined}
+              >
+                View source document in PDF
+              </button>
+            </div>
           </div>
         </div>
       </div>
@@ -695,7 +733,7 @@ const StatusBadge: React.FC<{ status: string; onClick?: () => void }> = ({ statu
 };
 
 export const AuditReport: React.FC<AuditReportProps> = ({ data, files, triageItems, onTriage }) => {
-  const [activeTab, setActiveTab] = useState<'docs' | 'levy' | 'assets' | 'expense' | 'compliance' | 'completion'>('docs');
+  const [activeTab, setActiveTab] = useState<'docs' | 'levy' | 'assets' | 'expense' | 'gst' | 'aiAttempt' | 'compliance' | 'completion'>('docs');
   const [activeVerificationSteps, setActiveVerificationSteps] = useState<VerificationStep[] | null>(null);
   const [expenseForensic, setExpenseForensic] = useState<{ pillar: 'INV' | 'PAY' | 'AUTH' | 'FUND'; rowIndex: number; item: ExpenseSample } | null>(null);
   
@@ -754,14 +792,20 @@ export const AuditReport: React.FC<AuditReportProps> = ({ data, files, triageIte
           <TabButton active={activeTab === 'docs'} onClick={() => setActiveTab('docs')}>
             Register
           </TabButton>
-          <TabButton active={activeTab === 'levy'} onClick={() => setActiveTab('levy')}>
-            Revenue
-          </TabButton>
           <TabButton active={activeTab === 'assets'} onClick={() => setActiveTab('assets')}>
-            Assets
+            Balance Sheet
+          </TabButton>
+          <TabButton active={activeTab === 'levy'} onClick={() => setActiveTab('levy')}>
+            Levy Rec
+          </TabButton>
+          <TabButton active={activeTab === 'gst'} onClick={() => setActiveTab('gst')}>
+            GST
           </TabButton>
           <TabButton active={activeTab === 'expense'} onClick={() => setActiveTab('expense')}>
-            Expense
+            Expense Vouching
+          </TabButton>
+          <TabButton active={activeTab === 'aiAttempt'} onClick={() => setActiveTab('aiAttempt')}>
+            AI Attempt
           </TabButton>
           <TabButton active={activeTab === 'compliance'} onClick={() => setActiveTab('compliance')}>
             Compliance
@@ -1031,36 +1075,36 @@ export const AuditReport: React.FC<AuditReportProps> = ({ data, files, triageIte
                     </tr>
                   </thead>
                   <tbody className="divide-y divide-gray-100 text-[15px]">
-                    {/* OPENING BALANCE */}
+                    {/* PRIOR YEAR BALANCE (Opening) */}
                     <tr className="bg-gray-50/50">
-                        <td className="px-5 py-3 text-left font-bold text-gray-800 uppercase text-[14px] tracking-wide">Opening Balance</td>
+                        <td className="px-5 py-3 text-left font-bold text-gray-800 uppercase text-[14px] tracking-wide">Prior Year (Opening)</td>
                         <td colSpan={4}></td>
                     </tr>
                     <tr className="group hover:bg-gray-50">
                         <td className="px-5 py-3 text-left pl-8 text-gray-600">Levies in Arrears</td>
                         <td></td>
                         <td></td>
-                        <td className="px-5 py-3 font-medium"><ForensicCell val={data.levy_reconciliation.master_table.Op_Arrears} docs={docs} files={files} /></td>
+                        <td className="px-5 py-3 font-medium"><ForensicCell val={data.levy_reconciliation.master_table.PriorYear_Arrears} docs={docs} files={files} /></td>
                         <td className="px-5 py-3 text-left pl-8 text-gray-400 italic text-[13px]">
-                           {withAction('op_arr', 'Opening Arrears (Prior Year)', data.levy_reconciliation.master_table.Op_Arrears.note || '-')}
+                           {withAction('prior_arr', 'Prior Year Arrears', data.levy_reconciliation.master_table.PriorYear_Arrears.note || '-')}
                         </td>
                     </tr>
                     <tr className="group hover:bg-gray-50">
                         <td className="px-5 py-3 text-left pl-8 text-gray-600">(Less) Levies in Advance</td>
                         <td></td>
                         <td></td>
-                        <td className="px-5 py-3 text-red-700">(<ForensicCell val={data.levy_reconciliation.master_table.Op_Advance} docs={docs} files={files} />)</td>
+                        <td className="px-5 py-3 text-red-700">(<ForensicCell val={data.levy_reconciliation.master_table.PriorYear_Advance} docs={docs} files={files} />)</td>
                         <td className="px-5 py-3 text-left pl-8 text-gray-400 italic text-[13px]">
-                           {withAction('op_adv', 'Opening Advance (Prior Year)', data.levy_reconciliation.master_table.Op_Advance.note || '-')}
+                           {withAction('prior_adv', 'Prior Year Advance', data.levy_reconciliation.master_table.PriorYear_Advance.note || '-')}
                         </td>
                     </tr>
                     <tr className="border-b border-gray-100 group hover:bg-gray-50">
-                        <td className="px-5 py-3 text-left pl-8 font-bold text-black">(A) NET OPENING</td>
+                        <td className="px-5 py-3 text-left pl-8 font-bold text-black">(A) NET PRIOR YEAR</td>
                         <td></td>
                         <td></td>
-                        <td className="px-5 py-3 font-bold text-black"><ForensicCell val={data.levy_reconciliation.master_table.Net_Opening_Bal} docs={docs} files={files} /></td>
+                        <td className="px-5 py-3 font-bold text-black"><ForensicCell val={data.levy_reconciliation.master_table.PriorYear_Net} docs={docs} files={files} /></td>
                         <td className="px-5 py-3 text-left pl-8 text-gray-400 italic text-[13px]">
-                           {withAction('net_op', 'Net Opening', data.levy_reconciliation.master_table.Net_Opening_Bal.note || '-')}
+                           {withAction('prior_net', 'Net Prior Year', data.levy_reconciliation.master_table.PriorYear_Net.note || '-')}
                         </td>
                     </tr>
 
@@ -1215,10 +1259,10 @@ export const AuditReport: React.FC<AuditReportProps> = ({ data, files, triageIte
                         <td colSpan={4}></td>
                     </tr>
                     <tr className="group hover:bg-gray-50">
-                        <td className="px-5 py-3 text-left pl-8 text-gray-600">(A) Net Opening</td>
+                        <td className="px-5 py-3 text-left pl-8 text-gray-600">(A) Net Prior Year</td>
                         <td></td>
                         <td></td>
-                        <td className="px-5 py-3 font-medium"><ForensicCell val={data.levy_reconciliation.master_table.Net_Opening_Bal} docs={docs} files={files} /></td>
+                        <td className="px-5 py-3 font-medium"><ForensicCell val={data.levy_reconciliation.master_table.PriorYear_Net} docs={docs} files={files} /></td>
                         <td></td>
                     </tr>
                     <tr className="group hover:bg-gray-50">
@@ -1289,36 +1333,36 @@ export const AuditReport: React.FC<AuditReportProps> = ({ data, files, triageIte
                         </td>
                     </tr>
                     
-                    {/* NEW: Granular Closing Balance Breakdown */}
+                    {/* CURRENT YEAR BALANCE (Closing) */}
                     <tr className="border-t border-gray-200">
-                        <td className="px-5 py-2 text-left pl-8 text-gray-600">Closing Balance per Balance Sheet</td>
+                        <td className="px-5 py-2 text-left pl-8 text-gray-600">Current Year (Closing) per Balance Sheet</td>
                         <td colSpan={4}></td>
                     </tr>
                     <tr className="group hover:bg-gray-50">
                         <td className="px-5 py-2 text-left pl-8 text-gray-600">Levies in Arrears</td>
                         <td></td>
                         <td></td>
-                        <td className="px-5 py-2 font-medium"><ForensicCell val={data.levy_reconciliation.master_table.BS_Arrears} docs={docs} files={files} /></td>
+                        <td className="px-5 py-2 font-medium"><ForensicCell val={data.levy_reconciliation.master_table.CurrentYear_Arrears} docs={docs} files={files} /></td>
                         <td className="px-5 py-2 text-left pl-8 text-gray-400 italic text-[13px]">
-                           {withAction('bs_arr', 'Closing Arrears (Current Year)', data.levy_reconciliation.master_table.BS_Arrears.note || 'Asset')}
+                           {withAction('curr_arr', 'Current Year Arrears', data.levy_reconciliation.master_table.CurrentYear_Arrears.note || 'Asset')}
                         </td>
                     </tr>
                     <tr className="group hover:bg-gray-50">
                         <td className="px-5 py-2 text-left pl-8 text-gray-600">Levies in Advance</td>
                         <td></td>
                         <td></td>
-                        <td className="px-5 py-2 text-red-700">(<ForensicCell val={data.levy_reconciliation.master_table.BS_Advance} docs={docs} files={files} />)</td>
+                        <td className="px-5 py-2 text-red-700">(<ForensicCell val={data.levy_reconciliation.master_table.CurrentYear_Advance} docs={docs} files={files} />)</td>
                         <td className="px-5 py-2 text-left pl-8 text-gray-400 italic text-[13px]">
-                           {withAction('bs_adv', 'Closing Advance (Current Year)', data.levy_reconciliation.master_table.BS_Advance.note || 'Liability (Credit)')}
+                           {withAction('curr_adv', 'Current Year Advance', data.levy_reconciliation.master_table.CurrentYear_Advance.note || 'Liability (Credit)')}
                         </td>
                     </tr>
                     <tr className="border-t border-gray-200 group hover:bg-gray-50">
-                        <td className="px-5 py-4 text-left pl-8 font-bold text-gray-600">(G) BALANCE SHEET CLOSING</td>
+                        <td className="px-5 py-4 text-left pl-8 font-bold text-gray-600">(G) NET CURRENT YEAR</td>
                         <td></td>
                         <td></td>
-                        <td className="px-5 py-4 font-bold text-gray-600"><ForensicCell val={data.levy_reconciliation.master_table.BS_Closing} docs={docs} files={files} /></td>
+                        <td className="px-5 py-4 font-bold text-gray-600"><ForensicCell val={data.levy_reconciliation.master_table.CurrentYear_Net} docs={docs} files={files} /></td>
                         <td className="px-5 py-4 text-left pl-8 text-gray-400 italic text-[13px]">
-                           {withAction('bs_close', 'BS Closing', data.levy_reconciliation.master_table.BS_Closing.note || 'Net')}
+                           {withAction('curr_net', 'Net Current Year', data.levy_reconciliation.master_table.CurrentYear_Net.note || 'Net')}
                         </td>
                     </tr>
                     
@@ -1567,7 +1611,201 @@ export const AuditReport: React.FC<AuditReportProps> = ({ data, files, triageIte
             );
         })()}
 
-        {/* COMPLIANCE (NEW TABLE F.MASTER) */}
+        {/* GST – Table F.Master (moved from Compliance) */}
+        {activeTab === 'gst' && data.statutory_compliance?.gst_reconciliation && (
+            <div className="bg-white p-8 rounded border border-gray-200 shadow-sm">
+                <div className="border-b-2 border-[#C5A059] pb-3 mb-6">
+                    <h3 className="text-[16px] font-bold text-black uppercase tracking-wide">Table F.Master: GST Control Account Roll-Forward</h3>
+                    <p className="text-xs text-gray-500 mt-1 uppercase tracking-wide">Opening + GST Raised - GST Paid + BAS Activity = Closing Balance</p>
+                </div>
+                <div className="overflow-x-auto">
+                    <table className="w-full text-[15px]">
+                        <thead className="bg-gray-100 text-black uppercase font-bold text-[14px] tracking-wider">
+                            <tr>
+                                <th className="px-5 py-3 text-left">Movement Item</th>
+                                <th className="px-5 py-3 text-right">Amount ($)</th>
+                            </tr>
+                        </thead>
+                        <tbody className="divide-y divide-gray-100">
+                            <tr className="group hover:bg-gray-50 relative">
+                                <td className="py-3 px-5 font-bold text-gray-800">1. Opening Balance</td>
+                                <td className="py-3 px-5 text-right relative">
+                                    {withAction('gst_op', 'GST Opening', <ForensicCell val={data.statutory_compliance.gst_reconciliation.GST_Opening_Bal} docs={docs} files={files} />)}
+                                </td>
+                            </tr>
+                            <tr className="group hover:bg-gray-50 relative">
+                                <td className="py-3 px-5 text-gray-600">2. Add: GST on Levies</td>
+                                <td className="py-3 px-5 text-right relative">
+                                    {withAction('gst_add', 'GST on Levies', <ForensicCell val={data.statutory_compliance.gst_reconciliation.Total_GST_Raised} docs={docs} files={files} />)}
+                                </td>
+                            </tr>
+                            <tr className="group hover:bg-gray-50 relative">
+                                <td className="py-3 px-5 text-gray-600">3. Less: GST on Payments</td>
+                                <td className="py-3 px-5 text-right text-red-700 relative">
+                                    {withAction('gst_less', 'GST on Payments', <>(<ForensicCell val={data.statutory_compliance.gst_reconciliation.GST_On_Payments} docs={docs} files={files} />)</>)}
+                                </td>
+                            </tr>
+                            <tr className="bg-gray-50 border-y border-gray-200 group hover:bg-gray-100 relative">
+                                <td className="py-3 px-5 font-bold text-black">4. (=) Theor. Movement</td>
+                                <td className="py-3 px-5 text-right font-bold relative">
+                                    {withAction('gst_mvmt', 'GST Movement', <ForensicCell val={data.statutory_compliance.gst_reconciliation.GST_Theor_Mvmt} docs={docs} files={files} />)}
+                                </td>
+                            </tr>
+                            
+                            {/* BAS Activity */}
+                            <tr><td colSpan={2} className="py-2 text-[12px] font-bold text-gray-400 uppercase tracking-widest pl-5">BAS Activity</td></tr>
+                            {['Q1', 'Q2', 'Q3', 'Q4'].map((q) => {
+                                // @ts-ignore
+                                const val = data.statutory_compliance.gst_reconciliation[`BAS_${q}`];
+                                return (
+                                    <tr key={q} className="group hover:bg-gray-50 relative">
+                                        <td className="py-2 px-5 text-gray-600 pl-8">{q} BAS Payment/(Refund)</td>
+                                        <td className="py-2 px-5 text-right relative">
+                                            {withAction(`bas_${q}`, `${q} BAS`, <ForensicCell val={val} docs={docs} files={files} />)}
+                                        </td>
+                                    </tr>
+                                );
+                            })}
+
+                            <tr className="border-t border-dashed border-gray-300 group hover:bg-gray-50 relative">
+                                <td className="py-2 px-5 font-bold text-gray-700">5. Total BAS Cash</td>
+                                <td className="py-2 px-5 text-right font-bold relative">
+                                    {withAction('bas_tot', 'Total BAS', <ForensicCell val={data.statutory_compliance.gst_reconciliation.Total_BAS_Cash} docs={docs} files={files} />)}
+                                </td>
+                            </tr>
+
+                            {/* Final Rec */}
+                            <tr><td colSpan={2} className="py-3"></td></tr>
+                            <tr className="bg-gray-50 border-t border-gray-200 group hover:bg-gray-100 relative">
+                                <td className="py-3 px-5 font-bold text-black">6. Calc Closing Balance</td>
+                                <td className="py-3 px-5 text-right font-bold relative">
+                                    {withAction('gst_calc_cl', 'Calc GST Closing', <ForensicCell val={data.statutory_compliance.gst_reconciliation.GST_Calc_Closing} docs={docs} files={files} />)}
+                                </td>
+                            </tr>
+                            <tr className="group hover:bg-gray-50 relative">
+                                <td className="py-3 px-5 text-gray-600">7. GL Closing Balance</td>
+                                <td className="py-3 px-5 text-right relative">
+                                    {withAction('gst_gl_cl', 'GL GST Closing', <ForensicCell val={data.statutory_compliance.gst_reconciliation.GST_GL_Closing} docs={docs} files={files} />)}
+                                </td>
+                            </tr>
+                            <tr className="border-t-4 border-double border-black group hover:bg-gray-50 relative">
+                                <td className="py-3 px-5 font-bold text-black">8. VARIANCE</td>
+                                <td className="py-3 px-5 text-right font-bold relative">
+                                    {withAction('gst_var', 'GST Variance', <ForensicCell val={data.statutory_compliance.gst_reconciliation.GST_Rec_Variance} docs={docs} textColor={data.statutory_compliance.gst_reconciliation.GST_Rec_Variance.amount !== 0 ? 'text-red-700' : 'text-green-700'} files={files} />)}
+                                </td>
+                            </tr>
+                        </tbody>
+                    </table>
+                </div>
+            </div>
+        )}
+
+        {/* AI ATTEMPT – System Identified + Triage (待办) */}
+        {activeTab === 'aiAttempt' && (
+            <div className="space-y-8">
+                {/* Part 1: System Identified (unreconciled, unverified, didn't match) */}
+                <div className="bg-white p-8 rounded border border-gray-200 shadow-sm">
+                    <div className="border-b-2 border-[#C5A059] pb-3 mb-6">
+                        <h3 className="text-[16px] font-bold text-black uppercase tracking-wide">System Identified Issues</h3>
+                        <p className="text-xs text-gray-500 mt-1 uppercase tracking-wide">Items requiring attention: variances, failures, missing evidence</p>
+                    </div>
+                    <div className="space-y-4">
+                        {(() => {
+                            const issues: { source: string; description: string; status: string; severity: 'high'|'medium'|'low' }[] = [];
+                            // Levy variance
+                            if (data.levy_reconciliation?.master_table?.Levy_Variance?.amount !== 0) {
+                                issues.push({ source: 'Levy Rec', description: `Levy Variance: $${data.levy_reconciliation.master_table.Levy_Variance.amount.toLocaleString()}`, status: 'VARIANCE', severity: 'high' });
+                            }
+                            // Expense FAIL/RISK_FLAG
+                            (data.expense_samples || []).forEach((exp, i) => {
+                                if (exp.Overall_Status === 'FAIL') {
+                                    issues.push({ source: 'Expense Vouching', description: `${exp.GL_Payee} ($${exp.GL_Amount?.amount}) - ${exp.GL_Date}`, status: 'FAIL', severity: 'high' });
+                                } else if (exp.Overall_Status === 'RISK_FLAG') {
+                                    issues.push({ source: 'Expense Vouching', description: `${exp.GL_Payee} ($${exp.GL_Amount?.amount}) - ${exp.GL_Date}`, status: 'RISK_FLAG', severity: 'medium' });
+                                }
+                            });
+                            // BS verification non-VERIFIED
+                            (data.assets_and_cash?.balance_sheet_verification || []).forEach((bs) => {
+                                if (bs.status && bs.status !== 'VERIFIED') {
+                                    issues.push({ source: 'Balance Sheet', description: `${bs.line_item} - ${bs.status}`, status: bs.status, severity: bs.status.includes('MISSING') || bs.status.includes('NO_SUPPORT') ? 'high' : 'medium' });
+                                }
+                            });
+                            // GST variance
+                            if (data.statutory_compliance?.gst_reconciliation?.GST_Rec_Variance?.amount !== 0) {
+                                issues.push({ source: 'GST', description: `GST Variance: $${data.statutory_compliance.gst_reconciliation.GST_Rec_Variance.amount.toLocaleString()}`, status: 'VARIANCE', severity: 'high' });
+                            }
+                            
+                            return issues.length === 0 ? (
+                                <div className="text-center py-12 text-gray-500">
+                                    <svg className="w-12 h-12 mx-auto mb-3 opacity-30" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M9 12l2 2 4-4m6 2a9 9 0 11-18 0 9 9 0 0118 0z"></path></svg>
+                                    <p className="font-bold text-sm">No system-identified issues</p>
+                                    <p className="text-xs mt-1">All automated checks passed</p>
+                                </div>
+                            ) : (
+                                <div className="space-y-2">
+                                    {issues.map((issue, idx) => (
+                                        <div key={idx} className={`flex items-start gap-3 p-4 border-l-4 rounded-r ${
+                                            issue.severity === 'high' ? 'bg-red-50 border-red-500' :
+                                            issue.severity === 'medium' ? 'bg-yellow-50 border-yellow-500' :
+                                            'bg-blue-50 border-blue-400'
+                                        }`}>
+                                            <div className="flex-1">
+                                                <div className="flex items-center gap-2 mb-1">
+                                                    <span className="text-[10px] font-bold uppercase tracking-wider text-gray-500">{issue.source}</span>
+                                                    <StatusBadge status={issue.status} />
+                                                </div>
+                                                <div className="text-sm text-gray-800">{issue.description}</div>
+                                            </div>
+                                        </div>
+                                    ))}
+                                </div>
+                            );
+                        })()}
+                    </div>
+                </div>
+
+                {/* Part 2: Triage (待办) - sync with sidebar triage */}
+                <div className="bg-white p-8 rounded border border-gray-200 shadow-sm">
+                    <div className="border-b-2 border-[#C5A059] pb-3 mb-6">
+                        <h3 className="text-[16px] font-bold text-black uppercase tracking-wide">Triage (待办)</h3>
+                        <p className="text-xs text-gray-500 mt-1 uppercase tracking-wide">User-flagged items from report</p>
+                    </div>
+                    {triageItems.length === 0 ? (
+                        <div className="text-center py-12 text-gray-500">
+                            <svg className="w-12 h-12 mx-auto mb-3 opacity-30" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M3 21v-4m0 0V5a2 2 0 012-2h6.5l1 1H21l-3 6 3 6h-8.5l-1-1H5a2 2 0 00-2 2zm9-13.5V9"></path></svg>
+                            <p className="font-bold text-sm">No flagged items</p>
+                            <p className="text-xs mt-1">Hover rows in report and click flag icon to add</p>
+                        </div>
+                    ) : (
+                        <div className="space-y-3">
+                            {triageItems.map((t) => (
+                                <div key={t.id} className={`flex items-start gap-3 p-4 border-l-4 rounded-r ${
+                                    t.severity === 'critical' ? 'bg-red-50 border-red-500' :
+                                    t.severity === 'medium' ? 'bg-yellow-50 border-yellow-500' :
+                                    'bg-blue-50 border-blue-400'
+                                }`}>
+                                    <div className="flex-1">
+                                        <div className="flex items-center gap-2 mb-1">
+                                            <span className={`px-2 py-0.5 text-[10px] font-bold uppercase tracking-wider rounded ${
+                                                t.severity === 'critical' ? 'bg-red-500 text-white' :
+                                                t.severity === 'medium' ? 'bg-yellow-500 text-white' :
+                                                'bg-blue-500 text-white'
+                                            }`}>{t.severity}</span>
+                                            <span className="text-[10px] font-bold uppercase tracking-wider text-gray-500">{t.tab}</span>
+                                        </div>
+                                        <div className="text-sm font-bold text-gray-900 mb-1">{t.title}</div>
+                                        <div className="text-sm text-gray-600 leading-snug">{t.comment}</div>
+                                        <div className="text-[10px] text-gray-400 mt-2 font-mono">{new Date(t.timestamp).toLocaleString('en-AU')}</div>
+                                    </div>
+                                </div>
+                            ))}
+                        </div>
+                    )}
+                </div>
+            </div>
+        )}
+
+        {/* COMPLIANCE (Insurance + Income Tax only; GST moved to GST tab) */}
         {activeTab === 'compliance' && data.statutory_compliance && (
             <div className="space-y-8">
                  {/* Insurance Table K.1 */}
@@ -1619,134 +1857,48 @@ export const AuditReport: React.FC<AuditReportProps> = ({ data, files, triageIte
                     </div>
                  </div>
 
-                 <div className="grid grid-cols-1 md:grid-cols-2 gap-8">
-                    {/* GST Table F.Master (ROLL FORWARD) */}
-                    <div className="bg-white p-8 rounded border border-gray-200 shadow-sm">
-                        <div className="border-b-2 border-[#C5A059] pb-3 mb-6">
-                            <h3 className="text-[16px] font-bold text-black uppercase tracking-wide">Table F.Master: GST Control Account Roll-Forward</h3>
-                        </div>
-                        <table className="w-full text-[15px]">
-                            <thead className="bg-gray-100 text-black uppercase font-bold text-[14px] tracking-wider">
-                                <tr>
-                                    <th className="px-2 py-3 text-left">Movement Item</th>
-                                    <th className="px-2 py-3 text-right">Amount ($)</th>
-                                </tr>
-                            </thead>
-                            <tbody className="divide-y divide-gray-100">
-                                <tr className="group hover:bg-gray-50 relative">
-                                    <td className="py-3 px-2 font-bold text-gray-800">1. Opening Balance</td>
-                                    <td className="py-3 px-2 text-right relative">
-                                        {withAction('gst_op', 'GST Opening', <ForensicCell val={data.statutory_compliance.gst_reconciliation.GST_Opening_Bal} docs={docs} files={files} />)}
-                                    </td>
-                                </tr>
-                                <tr className="group hover:bg-gray-50 relative">
-                                    <td className="py-3 px-2 text-gray-600">2. Add: GST on Levies</td>
-                                    <td className="py-3 px-2 text-right relative">
-                                        {withAction('gst_add', 'GST on Levies', <ForensicCell val={data.statutory_compliance.gst_reconciliation.Total_GST_Raised} docs={docs} files={files} />)}
-                                    </td>
-                                </tr>
-                                <tr className="group hover:bg-gray-50 relative">
-                                    <td className="py-3 px-2 text-gray-600">3. Less: GST on Payments</td>
-                                    <td className="py-3 px-2 text-right text-red-700 relative">
-                                        {withAction('gst_less', 'GST on Payments', <>(<ForensicCell val={data.statutory_compliance.gst_reconciliation.GST_On_Payments} docs={docs} files={files} />)</>)}
-                                    </td>
-                                </tr>
-                                <tr className="bg-gray-50 border-y border-gray-200 group hover:bg-gray-100 relative">
-                                    <td className="py-3 px-2 font-bold text-black">4. (=) Theor. Movement</td>
-                                    <td className="py-3 px-2 text-right font-bold relative">
-                                        {withAction('gst_mvmt', 'GST Movement', <ForensicCell val={data.statutory_compliance.gst_reconciliation.GST_Theor_Mvmt} docs={docs} files={files} />)}
-                                    </td>
-                                </tr>
-                                
-                                {/* BAS Activity */}
-                                <tr><td colSpan={2} className="py-2 text-[12px] font-bold text-gray-400 uppercase tracking-widest pl-2">BAS Activity</td></tr>
-                                {['Q1', 'Q2', 'Q3', 'Q4'].map((q, i) => {
-                                    // @ts-ignore
-                                    const val = data.statutory_compliance.gst_reconciliation[`BAS_${q}`];
-                                    return (
-                                        <tr key={q} className="group hover:bg-gray-50 relative">
-                                            <td className="py-2 px-2 text-gray-600 pl-4">{q} BAS Payment/(Refund)</td>
-                                            <td className="py-2 px-2 text-right relative">
-                                                {withAction(`bas_${q}`, `${q} BAS`, <ForensicCell val={val} docs={docs} files={files} />)}
-                                            </td>
-                                        </tr>
-                                    );
-                                })}
-
-                                <tr className="border-t border-dashed border-gray-300 group hover:bg-gray-50 relative">
-                                    <td className="py-2 px-2 font-bold text-gray-700">5. Total BAS Cash</td>
-                                    <td className="py-2 px-2 text-right font-bold relative">
-                                        {withAction('bas_tot', 'Total BAS', <ForensicCell val={data.statutory_compliance.gst_reconciliation.Total_BAS_Cash} docs={docs} files={files} />)}
-                                    </td>
-                                </tr>
-
-                                {/* Final Rec */}
-                                <tr><td colSpan={2} className="py-3"></td></tr>
-                                <tr className="bg-gray-50 border-t border-gray-200 group hover:bg-gray-100 relative">
-                                    <td className="py-3 px-2 font-bold text-black">6. Calc Closing Balance</td>
-                                    <td className="py-3 px-2 text-right font-bold relative">
-                                        {withAction('gst_calc_cl', 'Calc GST Closing', <ForensicCell val={data.statutory_compliance.gst_reconciliation.GST_Calc_Closing} docs={docs} files={files} />)}
-                                    </td>
-                                </tr>
-                                <tr className="group hover:bg-gray-50 relative">
-                                    <td className="py-3 px-2 text-gray-600">7. GL Closing Balance</td>
-                                    <td className="py-3 px-2 text-right relative">
-                                        {withAction('gst_gl_cl', 'GL GST Closing', <ForensicCell val={data.statutory_compliance.gst_reconciliation.GST_GL_Closing} docs={docs} files={files} />)}
-                                    </td>
-                                </tr>
-                                <tr className="border-t-4 border-double border-black group hover:bg-gray-50 relative">
-                                    <td className="py-3 px-2 font-bold text-black">8. VARIANCE</td>
-                                    <td className="py-3 px-2 text-right font-bold relative">
-                                        {withAction('gst_var', 'GST Variance', <ForensicCell val={data.statutory_compliance.gst_reconciliation.GST_Rec_Variance} docs={docs} textColor={data.statutory_compliance.gst_reconciliation.GST_Rec_Variance.amount !== 0 ? 'text-red-700' : 'text-green-700'} files={files} />)}
-                                    </td>
-                                </tr>
-                            </tbody>
-                        </table>
+                 {/* Tax Table L.1 (full width, GST moved to GST tab) */}
+                 <div className="bg-white p-8 rounded border border-gray-200 shadow-sm">
+                    <div className="border-b-2 border-[#C5A059] pb-3 mb-6">
+                        <h3 className="text-[16px] font-bold text-black uppercase tracking-wide">Table L.1: Income Tax</h3>
                     </div>
-
-                    {/* Tax Table L.1 */}
-                    <div className="bg-white p-8 rounded border border-gray-200 shadow-sm">
-                        <div className="border-b-2 border-[#C5A059] pb-3 mb-6">
-                            <h3 className="text-[16px] font-bold text-black uppercase tracking-wide">Table L.1: Income Tax</h3>
-                        </div>
-                        <table className="w-full text-[15px]">
-                            <tbody className="divide-y divide-gray-100">
-                                <tr className="group hover:bg-gray-50 relative">
-                                    <td className="py-2 px-2 text-gray-600">Assessable Income</td>
-                                    <td className="py-2 px-2 text-right text-gray-800 relative">
-                                        {withAction('tax_inc', 'Assessable Income', <>$<ForensicCell val={{
-                                            amount: data.statutory_compliance.income_tax.Interest_Income.amount + data.statutory_compliance.income_tax.Other_Taxable_Income.amount,
-                                            source_doc_id: data.statutory_compliance.income_tax.Interest_Income.source_doc_id, 
-                                            page_ref: "Combined Calc"
-                                        }} docs={docs} files={files} /></>)}
-                                    </td>
-                                </tr>
-                                <tr className="group hover:bg-gray-50 relative">
-                                    <td className="py-2 px-2 text-gray-600">Less: Deductions</td>
-                                    <td className="py-2 px-2 text-right text-gray-800 relative">
-                                        {withAction('tax_ded', 'Tax Deductions', <>(<ForensicCell val={data.statutory_compliance.income_tax.Tax_Deductions} docs={docs} files={files} />)</>)}
-                                    </td>
-                                </tr>
-                                <tr className="bg-gray-50 border-y border-gray-200 group hover:bg-gray-100 relative">
-                                    <td className="py-3 px-2 font-bold text-black">Taxable Income</td>
-                                    <td className="py-3 px-2 text-right font-bold relative">
-                                        {withAction('tax_net', 'Taxable Income', <ForensicCell val={data.statutory_compliance.income_tax.Net_Taxable} docs={docs} files={files} />)}
-                                    </td>
-                                </tr>
-                                <tr className="group hover:bg-gray-50 relative">
-                                    <td className="py-3 px-2 font-bold text-gray-700">Tax Payable (@ 25%)</td>
-                                    <td className="py-3 px-2 text-right font-bold relative">
-                                        {withAction('tax_pay', 'Tax Payable', <ForensicCell val={data.statutory_compliance.income_tax.Calc_Tax} docs={docs} files={files} />)}
-                                    </td>
-                                </tr>
-                                <tr>
-                                    <td colSpan={2} className="pt-4 text-center">
-                                        <StatusBadge status={data.statutory_compliance.income_tax.Tax_Adj_Status} />
-                                    </td>
-                                </tr>
-                            </tbody>
-                        </table>
-                    </div>
+                    <table className="w-full text-[15px]">
+                        <tbody className="divide-y divide-gray-100">
+                            <tr className="group hover:bg-gray-50 relative">
+                                <td className="py-2 px-2 text-gray-600">Assessable Income</td>
+                                <td className="py-2 px-2 text-right text-gray-800 relative">
+                                    {withAction('tax_inc', 'Assessable Income', <>$<ForensicCell val={{
+                                        amount: data.statutory_compliance.income_tax.Interest_Income.amount + data.statutory_compliance.income_tax.Other_Taxable_Income.amount,
+                                        source_doc_id: data.statutory_compliance.income_tax.Interest_Income.source_doc_id, 
+                                        page_ref: "Combined Calc"
+                                    }} docs={docs} files={files} /></>)}
+                                </td>
+                            </tr>
+                            <tr className="group hover:bg-gray-50 relative">
+                                <td className="py-2 px-2 text-gray-600">Less: Deductions</td>
+                                <td className="py-2 px-2 text-right text-gray-800 relative">
+                                    {withAction('tax_ded', 'Tax Deductions', <>(<ForensicCell val={data.statutory_compliance.income_tax.Tax_Deductions} docs={docs} files={files} />)</>)}
+                                </td>
+                            </tr>
+                            <tr className="bg-gray-50 border-y border-gray-200 group hover:bg-gray-100 relative">
+                                <td className="py-3 px-2 font-bold text-black">Taxable Income</td>
+                                <td className="py-3 px-2 text-right font-bold relative">
+                                    {withAction('tax_net', 'Taxable Income', <ForensicCell val={data.statutory_compliance.income_tax.Net_Taxable} docs={docs} files={files} />)}
+                                </td>
+                            </tr>
+                            <tr className="group hover:bg-gray-50 relative">
+                                <td className="py-3 px-2 font-bold text-gray-700">Tax Payable (@ 25%)</td>
+                                <td className="py-3 px-2 text-right font-bold relative">
+                                    {withAction('tax_pay', 'Tax Payable', <ForensicCell val={data.statutory_compliance.income_tax.Calc_Tax} docs={docs} files={files} />)}
+                                </td>
+                            </tr>
+                            <tr>
+                                <td colSpan={2} className="pt-4 text-center">
+                                    <StatusBadge status={data.statutory_compliance.income_tax.Tax_Adj_Status} />
+                                </td>
+                            </tr>
+                        </tbody>
+                    </table>
                  </div>
             </div>
         )}

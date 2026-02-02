@@ -82,7 +82,7 @@
             "AGM_Date": {
               "type": "string"
             },
-            "Op_Arrears": {
+            "PriorYear_Arrears": {
               "type": "object",
               "properties": {
                 "amount": {
@@ -124,7 +124,7 @@
               ],
               "additionalProperties": false
             },
-            "Op_Advance": {
+            "PriorYear_Advance": {
               "type": "object",
               "properties": {
                 "amount": {
@@ -166,7 +166,7 @@
               ],
               "additionalProperties": false
             },
-            "Net_Opening_Bal": {
+            "PriorYear_Net": {
               "type": "object",
               "properties": {
                 "amount": {
@@ -1300,7 +1300,7 @@
               ],
               "additionalProperties": false
             },
-            "BS_Arrears": {
+            "CurrentYear_Arrears": {
               "type": "object",
               "properties": {
                 "amount": {
@@ -1342,7 +1342,7 @@
               ],
               "additionalProperties": false
             },
-            "BS_Advance": {
+            "CurrentYear_Advance": {
               "type": "object",
               "properties": {
                 "amount": {
@@ -1384,7 +1384,7 @@
               ],
               "additionalProperties": false
             },
-            "BS_Closing": {
+            "CurrentYear_Net": {
               "type": "object",
               "properties": {
                 "amount": {
@@ -1472,9 +1472,9 @@
           "required": [
             "Source_Doc_ID",
             "AGM_Date",
-            "Op_Arrears",
-            "Op_Advance",
-            "Net_Opening_Bal",
+            "PriorYear_Arrears",
+            "PriorYear_Advance",
+            "PriorYear_Net",
             "Old_Levy_Admin",
             "Old_Levy_Sink",
             "Old_Levy_Total",
@@ -1501,9 +1501,9 @@
             "Non_Levy_Income",
             "Effective_Levy_Receipts",
             "Calc_Closing",
-            "BS_Arrears",
-            "BS_Advance",
-            "BS_Closing",
+            "CurrentYear_Arrears",
+            "CurrentYear_Advance",
+            "CurrentYear_Net",
             "Levy_Variance"
           ],
           "additionalProperties": false
