@@ -386,8 +386,13 @@ const ExpenseForensicPopover: React.FC<{
   }, [pdfUrl]);
 
   useEffect(() => {
-    const handleKeyDown = (e: KeyboardEvent) => { if (e.key === 'Escape') { setShowPdfModal(false); onClose(); } };
-    if (showPdfModal) document.addEventListener('keydown', handleKeyDown);
+    const handleKeyDown = (e: KeyboardEvent) => {
+      if (e.key === 'Escape') {
+        if (showPdfModal) setShowPdfModal(false);
+        else onClose();
+      }
+    };
+    document.addEventListener('keydown', handleKeyDown);
     return () => document.removeEventListener('keydown', handleKeyDown);
   }, [showPdfModal, onClose]);
 

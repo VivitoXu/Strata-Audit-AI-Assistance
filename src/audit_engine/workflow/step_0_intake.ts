@@ -73,76 +73,21 @@ C) CORE DATA POSITIONS (LOCKED LOCATORS)
    If not found, set each key to null.
 
 ========================
-D) BS EXTRACT – SCOPE (LOCKED SINGLE SOURCE OF TRUTH)
+D) BS EXTRACT (LOCKED SINGLE SOURCE OF TRUTH)
 ========================
 
-8) The Balance Sheet main table is the authoritative source of row list.
-   - Notes/schedules may provide additional rows only if they clearly extend the Balance Sheet (e.g. Receivables detail).
-   - Notes/schedules MUST NOT override year column mapping determined from the main Balance Sheet.
-   - Output only data rows with numeric amounts. Do not output headings unless they carry a numeric amount.
-   - Include subtotals if they carry numeric amounts.
+8) **Year column identification (FIRST – use intake_summary.financial_year as FY Global):**
+   - **current_year column:** Labels such as "Current year", "Current period", "Current", "This year" → maps to the FY (Global) end date.
+   - **prior_year column:** Labels such as "Prior year", "Prior period", "Prior", "Previous year", "Comparative" → maps to the year immediately before FY (Global).
+   - Apply the same mapping to main Balance Sheet and any Notes/schedules. Notes MUST NOT override the mapping from the main table.
+   - If single-column Balance Sheet: treat as current_year; set prior_year = 0 for all rows and prior_year_label = "".
 
-9) Output bs_extract as: { prior_year_label, current_year_label, rows: [...] }
-   Each row: { line_item, section, fund, prior_year, current_year }
-   - section: OWNERS_EQUITY | ASSETS | LIABILITIES
-   - fund: Admin | Capital | Sinking | TOTAL | N/A as shown
+9) **Balance Sheet extraction:**
+   - Scope: Main Balance Sheet table + Notes/schedules that extend BS (e.g. Receivables detail). Output only data rows with numeric amounts; include subtotals if they carry amounts.
+   - For each row: extract line_item (exact), section (OWNERS_EQUITY | ASSETS | LIABILITIES), fund (Admin | Capital | Sinking | TOTAL | N/A as shown), prior_year, current_year.
+   - Normalize numbers: Convert brackets to negative. Store as signed numbers as presented. Do not flip signs unless the Balance Sheet shows sign conventions.
 
-========================
-E) YEAR COLUMN MAPPING (NO GUESSING)
-========================
-
-10) Determine year column mapping from the MAIN Balance Sheet table FIRST (MANDATORY ORDER):
-    Step E1: Find the Balance Sheet table block and its column headers.
-    Step E2: Determine which column is current_year and which is prior_year using the priority rules below.
-    Step E3: LOCK the mapping. After locking, apply to all BS rows and any schedules. Do not re-map.
-
-11) Mapping priority rules (MANDATORY):
-
-    RULE E-PRIMARY (DATE MATCH):
-    - If BOTH comparative columns have explicit dates in the column headers (YYYY or DD/MM/YYYY):
-      - Map the column whose date matches the current FY end (from intake_summary.financial_year) to current_year.
-      - Map the column whose date matches the prior FY end to prior_year.
-
-    RULE E-SECONDARY (LABEL MATCH):
-    - If column headers have wording (no dates) such as:
-      - current candidates: "Current", "Current Year", "Current period", "This year", "This period"
-      - prior candidates: "Prior", "Prior Year", "Previous year", "Comparative", "Comparative Year", "Prior period"
-    - Bind labels to numeric columns by table structure: A label belongs to the numeric column directly beneath it in the SAME table block. Do not use page-level text order.
-    - If left/right binding is ambiguous after this, DEFAULT: LEFT column = current_year, RIGHT column = prior_year.
-
-    RULE E-TERTIARY (SINGLE COLUMN):
-    - If Balance Sheet has ONE numeric column only: Treat it as current_year. Set prior_year = 0 for all rows. Set prior_year_label = "".
-
-12) Ambiguity handling (HARD STOP):
-    - If mapping cannot be determined using E-PRIMARY or E-SECONDARY and it is not E-TERTIARY:
-      - Set intake_summary.boundary_defined = true
-      - Still output document_register and core_data_positions
-      - For bs_extract: output rows = [] and labels = ""
-      - Do NOT guess left/right.
-
-========================
-F) ROW EXTRACTION RULES (APPLY AFTER MAPPING)
-========================
-
-13) For each Balance Sheet data row:
-    - Extract line_item exactly as displayed.
-    - Determine section and fund as shown.
-    - Extract both values using the locked year mapping.
-    - Normalize numbers: Convert brackets to negative first. Store prior_year and current_year as signed numbers as presented. Do not flip signs unless the Balance Sheet itself shows sign conventions.
-
-14) Receivable and levy blank handling (MANDATORY):
-    - For Levies in Arrears, Levies in Advance, and any line_item containing "Receivable" or "Levy":
-      - If the current_year cell is blank or shows "-", set current_year = 0.
-      - Do NOT substitute from prior_year.
-
-========================
-G) SANITY CHECKS (OPTIONAL BUT RECOMMENDED)
-========================
-
-15) If the Balance Sheet shows totals (Total Assets, Total Liabilities, Total Equity):
-    - Perform a consistency check for current_year: Total Assets ≈ Total Liabilities + Total Equity within tolerance 1.00
-    - If it fails, set intake_summary.bs_extract_warning = "balance_check_failed".
-    - Do NOT auto-swap columns. Do not guess.
+10) Output bs_extract: { prior_year_label, current_year_label, rows: [...] }. Include every line item (Owners Equity, Assets, Liabilities).
 
 END STEP 0
 `;
