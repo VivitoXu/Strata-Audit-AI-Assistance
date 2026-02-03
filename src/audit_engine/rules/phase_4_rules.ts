@@ -135,7 +135,7 @@ MISSING EVIDENCE (MISSING_*, NO_SUPPORT)
 When required evidence is missing → status = MISSING_BANK_STMT | MISSING_LEVY_REPORT | MISSING_BREAKDOWN | NO_SUPPORT:
 - supporting_amount MUST be empty/null. Do NOT use 0 (0 causes false match or false variance).
 - evidence_ref MUST be "".
-- supporting_note MUST state "Subtotal – not independently vouched"
+- supporting_note MUST state the reason (e.g. "Bank statement not provided", "Levy report missing", "Evidence missing").
 
 ────────────────────────────────────────
 OUTPUT FIELDS

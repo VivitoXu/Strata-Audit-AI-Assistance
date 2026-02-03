@@ -5,6 +5,8 @@ import React, { useState, useEffect, useRef } from 'react';
 import { FileUpload } from './components/FileUpload';
 import { AuditReport } from './components/AuditReport';
 import { callExecuteFullReview } from './services/gemini';
+import { mergeAiAttemptUpdates } from './services/mergeAiAttemptUpdates';
+import { buildAiAttemptTargets } from './src/audit_engine/ai_attempt_targets';
 import { auth, db, storage, hasValidFirebaseConfig } from './services/firebase';
 import { uploadPlanFiles, savePlanToFirestore, deletePlanFilesFromStorage, deletePlanFromFirestore, getPlansFromFirestore, loadPlanFilesFromStorage } from './services/planPersistence';
 import type { User } from 'firebase/auth';
@@ -196,14 +198,16 @@ const App: React.FC = () => {
 
   // --- LOGIC ENGINE EXECUTION ---
 
-  /** Infer next step from plan state: call1 (Step 0), call2, or done */
-  const getNextStep = (plan: Plan): "call1" | "call2" | "done" => {
+  /** Infer next step: call1 (Step 0), call2 (4 phases), aiAttempt (targeted re-verify), or done (after Phase 6) */
+  const getNextStep = (plan: Plan): "call1" | "call2" | "aiAttempt" | "done" => {
     if (!plan.result?.document_register?.length) return "call1";
     const hasCall2 =
       (plan.result.levy_reconciliation != null && Object.keys(plan.result.levy_reconciliation?.master_table || {}).length > 0) ||
       (plan.result.assets_and_cash?.balance_sheet_verification?.length ?? 0) > 0 ||
       (plan.result.expense_samples?.length ?? 0) > 0;
-    return hasCall2 ? "done" : "call2";
+    if (!hasCall2) return "call2";
+    const hasCompletion = plan.result.completion_outputs != null;
+    return hasCompletion ? "done" : "aiAttempt";
   };
 
   const handleNextStep = async (planId: string) => {
@@ -212,6 +216,7 @@ const App: React.FC = () => {
     const step = getNextStep(plan);
     if (step === "call1") return handleRunStep0Only(planId);
     if (step === "call2") return handleRunCall2(planId);
+    if (step === "aiAttempt") return handleRunAiAttempt(planId);
   };
 
   const handleRunCall2 = async (planId: string) => {
@@ -256,7 +261,6 @@ const App: React.FC = () => {
         assets_and_cash: phase4Res.assets_and_cash,
         expense_samples: expensesRes.expense_samples,
         statutory_compliance: complianceRes.statutory_compliance,
-        completion_outputs: complianceRes.completion_outputs,
       };
       await savePlanToFirestore(db, planId, {
         ...baseDoc,
@@ -277,6 +281,146 @@ const App: React.FC = () => {
         ...baseDoc,
         status: "failed",
         ...(filePaths.length > 0 ? { filePaths } : {}),
+        fileMeta: targetPlan.fileMeta,
+        error: errMessage,
+      });
+      setPlans((prev) =>
+        prev.map((p) =>
+          p.id === planId ? { ...p, status: "failed" as const, error: errMessage } : p
+        )
+      );
+    }
+  };
+
+  const handleRunAiAttempt = async (planId: string) => {
+    const targetPlan = plans.find((p) => p.id === planId);
+    if (!targetPlan) return;
+    if (!firebaseUser) {
+      updatePlan(planId, { error: "请先登录后再执行审计。" });
+      return;
+    }
+    if (targetPlan.files.length === 0) {
+      updatePlan(planId, { error: "No evidence files found." });
+      return;
+    }
+    const mergedSoFar = targetPlan.result;
+    if (!mergedSoFar?.document_register?.length || !mergedSoFar?.intake_summary) {
+      updatePlan(planId, { error: "请先完成 Step 0 和 Call 2，再执行 AI Attempt。" });
+      return;
+    }
+    const hasCall2 =
+      (mergedSoFar.levy_reconciliation != null && Object.keys(mergedSoFar.levy_reconciliation?.master_table || {}).length > 0) ||
+      (mergedSoFar.assets_and_cash?.balance_sheet_verification?.length ?? 0) > 0 ||
+      (mergedSoFar.expense_samples?.length ?? 0) > 0;
+    if (!hasCall2) {
+      updatePlan(planId, { error: "请先完成 Call 2，再执行 AI Attempt。" });
+      return;
+    }
+    const targets = buildAiAttemptTargets(mergedSoFar, targetPlan.triage);
+    if (targets.length === 0) {
+      updatePlan(planId, { error: "没有待重核项。请在 AI Attempt 标签查看 System Identified Issues 或添加 Triage 待办后再运行。" });
+      return;
+    }
+    updatePlan(planId, { status: "processing", error: null });
+    setIsCreateModalOpen(false);
+    const userId = firebaseUser.uid;
+    const baseDoc = { userId, name: targetPlan.name, createdAt: targetPlan.createdAt };
+    try {
+      const res = await callExecuteFullReview({
+        files: targetPlan.files,
+        expectedPlanId: planId,
+        mode: "aiAttempt",
+        step0Output: mergedSoFar,
+        aiAttemptTargets: targets,
+        fileMeta: targetPlan.fileMeta,
+      });
+      const updates = (res as { ai_attempt_updates?: unknown })?.ai_attempt_updates;
+      const merged = mergeAiAttemptUpdates(mergedSoFar, updates ?? null);
+      await savePlanToFirestore(db, planId, {
+        ...baseDoc,
+        status: "completed",
+        filePaths: targetPlan.filePaths ?? [],
+        fileMeta: targetPlan.fileMeta,
+        result: merged,
+        triage: targetPlan.triage,
+      });
+      setPlans((prev) =>
+        prev.map((p) =>
+          p.id === planId ? { ...p, status: "completed" as const, result: merged } : p
+        )
+      );
+    } catch (err: unknown) {
+      const errMessage = (err as Error)?.message || "AI Attempt Failed";
+      await savePlanToFirestore(db, planId, {
+        ...baseDoc,
+        status: "failed",
+        filePaths: targetPlan.filePaths ?? [],
+        fileMeta: targetPlan.fileMeta,
+        error: errMessage,
+      });
+      setPlans((prev) =>
+        prev.map((p) =>
+          p.id === planId ? { ...p, status: "failed" as const, error: errMessage } : p
+        )
+      );
+    }
+  };
+
+  const handleRunPhase6 = async (planId: string) => {
+    const targetPlan = plans.find((p) => p.id === planId);
+    if (!targetPlan) return;
+    if (!firebaseUser) {
+      updatePlan(planId, { error: "请先登录后再执行审计。" });
+      return;
+    }
+    if (targetPlan.files.length === 0) {
+      updatePlan(planId, { error: "No evidence files found." });
+      return;
+    }
+    const mergedSoFar = targetPlan.result;
+    if (!mergedSoFar?.document_register?.length || !mergedSoFar?.intake_summary) {
+      updatePlan(planId, { error: "请先完成 Step 0 和 Call 2，再执行 Phase 6。" });
+      return;
+    }
+    const hasCall2 =
+      (mergedSoFar.levy_reconciliation != null && Object.keys(mergedSoFar.levy_reconciliation?.master_table || {}).length > 0) ||
+      (mergedSoFar.assets_and_cash?.balance_sheet_verification?.length ?? 0) > 0 ||
+      (mergedSoFar.expense_samples?.length ?? 0) > 0;
+    if (!hasCall2) {
+      updatePlan(planId, { error: "请先完成 Call 2（Levy、Balance Sheet、Expenses、Compliance），再执行 Phase 6。" });
+      return;
+    }
+    updatePlan(planId, { status: "processing", error: null });
+    setIsCreateModalOpen(false);
+    const userId = firebaseUser.uid;
+    const baseDoc = { userId, name: targetPlan.name, createdAt: targetPlan.createdAt };
+    try {
+      const completionRes = await callExecuteFullReview({
+        files: targetPlan.files,
+        expectedPlanId: planId,
+        mode: "completion",
+        step0Output: mergedSoFar,
+      });
+      const finalMerged = { ...mergedSoFar, completion_outputs: completionRes.completion_outputs };
+      await savePlanToFirestore(db, planId, {
+        ...baseDoc,
+        status: "completed",
+        filePaths: targetPlan.filePaths ?? [],
+        fileMeta: targetPlan.fileMeta,
+        result: finalMerged,
+        triage: targetPlan.triage,
+      });
+      setPlans((prev) =>
+        prev.map((p) =>
+          p.id === planId ? { ...p, status: "completed" as const, result: finalMerged } : p
+        )
+      );
+    } catch (err: unknown) {
+      const errMessage = (err as Error)?.message || "Phase 6 Failed";
+      await savePlanToFirestore(db, planId, {
+        ...baseDoc,
+        status: "failed",
+        filePaths: targetPlan.filePaths ?? [],
         fileMeta: targetPlan.fileMeta,
         error: errMessage,
       });
@@ -864,28 +1008,50 @@ const App: React.FC = () => {
                       </span>
                     )}
                  </div>
-                 {/* Next Step 常驻，为 wrap up / 新增 evidence 后 re-run 预留 */}
-                 <button
-                   onClick={() => handleNextStep(activePlan.id)}
-                   disabled={
-                     !firebaseUser ||
-                     activePlan.files.length === 0 ||
-                     activePlan.status === "processing" ||
-                     (getNextStep(activePlan) === "call2" && !activePlan.result?.document_register?.length) ||
-                     getNextStep(activePlan) === "done"
-                   }
-                   className={`shrink-0 px-6 py-3 font-bold text-xs uppercase tracking-widest rounded-sm border-2 transition-all focus:outline-none ${
-                     !firebaseUser ||
-                     activePlan.files.length === 0 ||
-                     activePlan.status === "processing" ||
-                     (getNextStep(activePlan) === "call2" && !activePlan.result?.document_register?.length) ||
-                     getNextStep(activePlan) === "done"
-                       ? "bg-gray-100 border-gray-200 text-gray-400 cursor-not-allowed"
-                       : "bg-[#C5A059] border-[#C5A059] text-black hover:bg-[#A08040] hover:border-[#A08040]"
-                   }`}
-                 >
-                   Next Step
-                 </button>
+                 <div className="shrink-0 flex items-center gap-3">
+                   {/* Next Step: Step 0, Call 2, or Run AI Attempt (targeted re-verification) */}
+                   <button
+                     onClick={() => handleNextStep(activePlan.id)}
+                     disabled={
+                       !firebaseUser ||
+                       activePlan.files.length === 0 ||
+                       activePlan.status === "processing" ||
+                       (getNextStep(activePlan) === "call2" && !activePlan.result?.document_register?.length) ||
+                       getNextStep(activePlan) === "done" ||
+                       (getNextStep(activePlan) === "aiAttempt" && buildAiAttemptTargets(activePlan.result ?? null, activePlan.triage).length === 0)
+                     }
+                     className={`px-6 py-3 font-bold text-xs uppercase tracking-widest rounded-sm border-2 transition-all focus:outline-none ${
+                       !firebaseUser ||
+                       activePlan.files.length === 0 ||
+                       activePlan.status === "processing" ||
+                       (getNextStep(activePlan) === "call2" && !activePlan.result?.document_register?.length) ||
+                       getNextStep(activePlan) === "done" ||
+                       (getNextStep(activePlan) === "aiAttempt" && buildAiAttemptTargets(activePlan.result ?? null, activePlan.triage).length === 0)
+                         ? "bg-gray-100 border-gray-200 text-gray-400 cursor-not-allowed"
+                         : "bg-[#C5A059] border-[#C5A059] text-black hover:bg-[#A08040] hover:border-[#A08040]"
+                     }`}
+                   >
+                     {getNextStep(activePlan) === "aiAttempt" ? "Run AI Attempt" : "Next Step"}
+                   </button>
+                   {/* Proceed with Completion: Phase 6 (only when in AI Attempt state) */}
+                   {getNextStep(activePlan) === "aiAttempt" && (
+                     <button
+                       onClick={() => handleRunPhase6(activePlan.id)}
+                       disabled={
+                         !firebaseUser ||
+                         activePlan.files.length === 0 ||
+                         activePlan.status === "processing"
+                       }
+                       className={`px-6 py-3 font-bold text-xs uppercase tracking-widest rounded-sm border-2 transition-all focus:outline-none ${
+                         !firebaseUser || activePlan.files.length === 0 || activePlan.status === "processing"
+                           ? "bg-gray-100 border-gray-200 text-gray-400 cursor-not-allowed"
+                           : "bg-[#2d5a27] border-[#2d5a27] text-white hover:bg-[#234a20] hover:border-[#234a20]"
+                       }`}
+                     >
+                       Proceed with Completion
+                     </button>
+                   )}
+                 </div>
               </div>
 
               {/* Error banner */}

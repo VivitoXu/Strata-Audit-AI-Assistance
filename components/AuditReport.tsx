@@ -1029,6 +1029,13 @@ export const AuditReport: React.FC<AuditReportProps> = ({ data, files, triageIte
                       </table>
                     </div>
                   </>
+                ) : safeData.bs_extract && Array.isArray(safeData.bs_extract.rows) && safeData.bs_extract.rows.length === 0 && (safeData.intake_summary?.boundary_defined || safeData.intake_summary?.bs_extract_warning) ? (
+                  <div className="p-4 bg-amber-50 border border-amber-200 rounded text-amber-800 text-[13px]">
+                    <strong>BS Extract – Boundary / Mapping Issue</strong>
+                    <p className="mt-2">Year column mapping could not be determined (boundary_defined) or balance check failed (bs_extract_warning). No rows extracted. Phase 2 &amp; 4 will report Not Resolved – Boundary Defined.</p>
+                    {safeData.intake_summary?.boundary_defined && <p className="mt-1">• FY or BS year mapping ambiguous</p>}
+                    {safeData.intake_summary?.bs_extract_warning === 'balance_check_failed' && <p className="mt-1">• Total Assets ≠ Total Liabilities + Total Equity (tolerance 1.00)</p>}
+                  </div>
                 ) : (safeData.bs_column_mapping || (safeData.bs_structure && Array.isArray(safeData.bs_structure) && safeData.bs_structure.length > 0)) ? (
                   <div className="p-4 bg-amber-50 border border-amber-200 rounded text-amber-800 text-[13px]">
                     Legacy format: bs_column_mapping / bs_structure present. Run a fresh audit to populate bs_extract.
@@ -1814,7 +1821,7 @@ export const AuditReport: React.FC<AuditReportProps> = ({ data, files, triageIte
                 <div className="bg-white p-8 rounded border border-gray-200 shadow-sm">
                     <div className="border-b-2 border-[#C5A059] pb-3 mb-6">
                         <h3 className="text-[16px] font-bold text-black uppercase tracking-wide">System Identified Issues</h3>
-                        <p className="text-xs text-gray-500 mt-1 uppercase tracking-wide">Items requiring attention: variances, failures, missing evidence</p>
+                        <p className="text-xs text-gray-500 mt-1 uppercase tracking-wide">Items requiring attention: variances, failures, missing evidence. Add evidence above if needed, then click Run AI Attempt to re-verify only these items.</p>
                     </div>
                     <div className="space-y-4">
                         {(() => {

@@ -11,8 +11,11 @@ import {
   buildPhase4Prompt,
   buildExpensesPrompt,
   buildPhase5Prompt,
+  buildPhase6Prompt,
+  buildAiAttemptPrompt,
 } from "../audit_engine";
 import type { AuditResponse } from "../audit_outputs/type_definitions";
+import type { AiAttemptTarget } from "../audit_engine/ai_attempt_targets";
 import { auth } from "./firebase";
 
 const PROJECT_ID = "strata-audit-ai-reviewer";
@@ -42,10 +45,14 @@ export interface CallExecuteFullReviewOptions {
   apiKey?: string;
   previousAudit?: AuditResponse | null;
   expectedPlanId?: string;
-  /** step0_only: 仅 Step 0；levy|phase4|expenses|compliance: Call 2 单阶段（需 step0Output）；full: 完整审计（默认） */
-  mode?: "step0_only" | "levy" | "phase4" | "expenses" | "compliance" | "full";
+  /** step0_only: 仅 Step 0；levy|phase4|expenses|compliance|completion|aiAttempt: Call 2 单阶段（需 step0Output）；full: 完整审计（默认） */
+  mode?: "step0_only" | "levy" | "phase4" | "expenses" | "compliance" | "completion" | "aiAttempt" | "full";
   /** Call 2 时必传：Step 0 输出，作为 LOCKED 上下文注入 */
   step0Output?: AuditResponse | null;
+  /** aiAttempt 时必传：待重核项列表 */
+  aiAttemptTargets?: AiAttemptTarget[];
+  /** aiAttempt 时可选：标记新增证据 [ADDITIONAL] */
+  fileMeta?: { batch: "initial" | "additional" }[];
 }
 
 /**
@@ -62,6 +69,8 @@ export async function callExecuteFullReview(
     expectedPlanId,
     mode = "full",
     step0Output,
+    aiAttemptTargets = [],
+    fileMeta,
   } = options;
   const user = auth.currentUser;
   if (!user) {
@@ -69,7 +78,10 @@ export async function callExecuteFullReview(
   }
   const idToken = await user.getIdToken();
 
-  const fileManifest = files.map((f, i) => `File Part ${i + 1}: ${f.name}`).join("\n");
+  const fileManifest =
+    mode === "aiAttempt" && fileMeta?.length === files.length
+      ? files.map((f, i) => `File Part ${i + 1}: ${f.name}${fileMeta[i]?.batch === "additional" ? " [ADDITIONAL]" : ""}`).join("\n")
+      : files.map((f, i) => `File Part ${i + 1}: ${f.name}`).join("\n");
   const filesPayload = await Promise.all(
     files.map(async (file) => {
       const data = await fileToBase64(file);
@@ -92,7 +104,11 @@ export async function callExecuteFullReview(
             ? buildExpensesPrompt()
             : mode === "compliance"
               ? buildPhase5Prompt()
-              : buildSystemPrompt();
+              : mode === "completion"
+                ? buildPhase6Prompt()
+                : mode === "aiAttempt"
+                  ? buildAiAttemptPrompt(aiAttemptTargets)
+                  : buildSystemPrompt();
 
   const body = {
     files: filesPayload,
@@ -100,8 +116,9 @@ export async function callExecuteFullReview(
     ...(apiKeyFromOptions ? {apiKey: apiKeyFromOptions} : {}),
     systemPrompt,
     fileManifest,
-    previousAudit: (mode === "levy" || mode === "phase4" || mode === "expenses" || mode === "compliance" ? step0Output : previousAudit) ?? undefined,
+    previousAudit: (mode === "levy" || mode === "phase4" || mode === "expenses" || mode === "compliance" || mode === "completion" || mode === "aiAttempt" ? step0Output : previousAudit) ?? undefined,
     mode,
+    aiAttemptTargets: mode === "aiAttempt" ? aiAttemptTargets : undefined,
   };
 
   const res = await fetch(url, {

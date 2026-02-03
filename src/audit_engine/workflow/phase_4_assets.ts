@@ -72,7 +72,7 @@ AUDIT PERIOD:
 - Use intake_summary.financial_year as the audit period.
 - CURRENT YEAR = the FY under audit.
 - Prior Year = the column immediately before it.
-- If not present, derive FY from meeting minutes and write to intake_summary.
+- If empty or boundary_defined → Not Resolved. In Call 2 mode, do NOT overwrite intake_summary; use the LOCKED value.
 
 ────────────────────────────────────────
 SECTION E – VERIFICATION (GATE 2 LOGIC)

@@ -26,6 +26,10 @@ export interface IntakeSummary {
   manager_limit?: number;
   /** AGM-approved limit above which General Meeting approval required – from AGM Minutes; used for Phase 3 Authority Tier 2/3 */
   agm_limit?: number;
+  /** True when FY cannot be determined or BS year mapping is ambiguous – boundary not reliably defined */
+  boundary_defined?: boolean;
+  /** Set to "balance_check_failed" when Total Assets ≠ Total Liabilities + Total Equity (tolerance 1.00) */
+  bs_extract_warning?: string;
 }
 
 /** Step 0: Location lock for a document */

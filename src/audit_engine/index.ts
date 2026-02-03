@@ -3,7 +3,7 @@
  * Exports buildSystemPrompt(), buildStep0Prompt(), and Call 2 phase prompts.
  */
 
-export { buildLevyPrompt, buildPhase4Prompt, buildExpensesPrompt, buildPhase5Prompt } from "./call2_phase_prompts";
+export { buildLevyPrompt, buildPhase4Prompt, buildExpensesPrompt, buildPhase5Prompt, buildPhase6Prompt, buildAiAttemptPrompt } from "./call2_phase_prompts";
 
 import { HIERARCHY_INTRO, HIERARCHY_AFTER_EVIDENCE } from "./kernel/00_constitution";
 import { EVIDENCE_RULES_PROMPT } from "./kernel/20_evidence_rules";
@@ -14,6 +14,7 @@ import { PHASE_2_REVENUE_PROMPT } from "./workflow/phase_2_revenue";
 import { PHASE_3_EXPENSES_PROMPT } from "./workflow/phase_3_expenses";
 import { PHASE_4_ASSETS_PROMPT } from "./workflow/phase_4_assets";
 import { PHASE_5_COMPLIANCE_PROMPT } from "./workflow/phase_5_compliance";
+import { PHASE_6_COMPLETION_PROMPT } from "./workflow/phase_6_completion";
 import { MODULE_50_OUTPUTS_PROMPT } from "../audit_outputs/output_registry";
 
 /** Step 0 output schema – document_register + intake_summary + core_data_positions + bs_column_mapping + bs_structure */
@@ -46,7 +47,9 @@ JSON SCHEMA (Step 0 only):
     "missing_critical_types": ["String"],
     "status": "String",
     "strata_plan": "String (e.g. SP 12345)",
-    "financial_year": "String (e.g. 01/07/2024 - 30/06/2025 or DD/MM/YYYY)"
+    "financial_year": "String (e.g. 01/07/2024 - 30/06/2025 or DD/MM/YYYY)",
+    "boundary_defined": "Boolean (optional – true when FY or BS mapping ambiguous)",
+    "bs_extract_warning": "String (optional – e.g. 'balance_check_failed')"
   },
   "core_data_positions": {
     "balance_sheet": { "doc_id": "String", "page_range": "String" } | null,
@@ -100,6 +103,7 @@ export function buildSystemPrompt(): string {
     PHASE_4_RULES_PROMPT +
     PHASE_3_EXPENSES_PROMPT +
     PHASE_5_COMPLIANCE_PROMPT +
+    PHASE_6_COMPLETION_PROMPT +
     MODULE_50_OUTPUTS_PROMPT
   );
 }

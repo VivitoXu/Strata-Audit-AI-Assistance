@@ -54,10 +54,11 @@ function getCurrentCombinedPrompt() {
   const p4 = readSegments("src/audit_engine/workflow/phase_4_assets.ts");
   const p3 = readSegments("src/audit_engine/workflow/phase_3_expenses.ts");
   const p5 = readSegments("src/audit_engine/workflow/phase_5_compliance.ts");
+  const p6 = readSegments("src/audit_engine/workflow/phase_6_completion.ts");
   const out = readSegments("src/audit_outputs/output_registry.ts");
   return (
     c0[0] + e0[0] + c0[1] +
-    s0[0] + p1[0] + p2[0] + p4[0] + p3[0] + p5[0] + out[0]
+    s0[0] + p1[0] + p2[0] + p4[0] + p3[0] + p5[0] + p6[0] + out[0]
   );
 }
 

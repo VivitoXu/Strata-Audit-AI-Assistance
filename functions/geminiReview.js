@@ -36,35 +36,46 @@ async function executeFullReview(opts) {
   }));
 
   const isStep0Only = mode === "step0_only";
-  const isCall2Phase = mode === "levy" || mode === "phase4" || mode === "expenses" || mode === "compliance";
+  const isCall2Phase = mode === "levy" || mode === "phase4" || mode === "expenses" ||
+    mode === "compliance" || mode === "completion" || mode === "aiAttempt";
   const call2PhaseLabels = {
     levy: "Phase 2 (Levy Reconciliation)",
     phase4: "Phase 4 (Balance Sheet Verification)",
     expenses: "Phase 3 (Expenses Vouching)",
-    compliance: "Phase 5 (Statutory Compliance) & Phase 6 (Completion)",
+    compliance: "Phase 5 (Statutory Compliance)",
+    completion: "Phase 6 (Completion & Disclosure)",
+    aiAttempt: "AI Attempt (Targeted Re-verification)",
   };
   const call2ReturnKeys = {
     levy: "\"levy_reconciliation\"",
     phase4: "\"assets_and_cash\"",
     expenses: "\"expense_samples\"",
-    compliance: "\"statutory_compliance\" and \"completion_outputs\"",
+    compliance: "\"statutory_compliance\"",
+    completion: "\"completion_outputs\"",
+    aiAttempt: "\"ai_attempt_updates\"",
   };
   const userInstruction = isCall2Phase && previousAudit ?
     `
 ATTACHED FILE MAPPING (Strictly map the binary parts to these names):
 ${fileManifest}
 
-*** LOCKED STEP 0 OUTPUT (DO NOT RE-EXTRACT – USE AS-IS) ***
+*** LOCKED ${mode === "completion" || mode === "aiAttempt" ? "AUDIT STATE (Step 0 + Phase 2–5 outputs)" : "STEP 0 OUTPUT"} (DO NOT RE-EXTRACT – USE AS-IS) ***
 ${JSON.stringify(previousAudit)}
 
 *** CALL 2 – ${mode.toUpperCase()} ONLY ***
 INSTRUCTIONS:
-1. You MUST use the LOCKED STEP 0 OUTPUT above. Do NOT re-extract document_register or intake_summary.
+1. You MUST use the LOCKED context above. Do NOT re-extract document_register or intake_summary.
 2. Use core_data_positions for document/page locations. Use intake_summary.financial_year as global FY.
 3. Execute ${call2PhaseLabels[mode] || mode} ONLY.
 4. Return ONLY ${call2ReturnKeys[mode] || mode}. No other keys.
 ${mode === "phase4" ? `
 5. [Phase 4 ONLY] bs_amount and line_item MUST be looked up from LOCKED bs_extract. supporting_amount from R2–R5 (Bank Stmt, Levy Report, etc.). Do NOT re-read Balance Sheet PDF.
+` : ""}
+${mode === "completion" ? `
+5. [Phase 6 ONLY] Aggregate issue_register from levy_reconciliation, assets_and_cash, expense_samples, statutory_compliance in the LOCKED context. Document boundary_disclosure from missing_critical_types, Not Resolved findings, boundary_defined, and bs_extract_warning.
+` : ""}
+${mode === "aiAttempt" ? `
+5. [AI Attempt ONLY] Re-verify ONLY the target items listed in the system prompt. Use [ADDITIONAL] files as new evidence. Return ai_attempt_updates with only the re-verified sections.
 ` : ""}
 ` :
     previousAudit && !isStep0Only ?

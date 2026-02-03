@@ -75,7 +75,9 @@ JSON SCHEMA:
     "strata_plan": "String (e.g. SP 12345)",
     "financial_year": "String (e.g. 01/07/2024 - 30/06/2025 or DD/MM/YYYY)",
     "manager_limit": "Number (optional – from Agency Agreement / Minutes)",
-    "agm_limit": "Number (optional – from AGM Minutes)"
+    "agm_limit": "Number (optional – from AGM Minutes)",
+    "boundary_defined": "Boolean (optional – true when FY or BS mapping ambiguous)",
+    "bs_extract_warning": "String (optional – e.g. 'balance_check_failed')"
   },
   "bs_extract": {
     "prior_year_label": "String",

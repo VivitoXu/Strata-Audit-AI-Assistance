@@ -10,6 +10,8 @@ import { PHASE_2_REVENUE_PROMPT } from "./workflow/phase_2_revenue";
 import { PHASE_4_ASSETS_PROMPT } from "./workflow/phase_4_assets";
 import { PHASE_3_EXPENSES_PROMPT, EXPENSE_RISK_FRAMEWORK, PHASE_3_FUND_INTEGRITY } from "./workflow/phase_3_expenses";
 import { PHASE_5_COMPLIANCE_PROMPT } from "./workflow/phase_5_compliance";
+import { PHASE_6_COMPLETION_PROMPT } from "./workflow/phase_6_completion";
+import { PHASE_AI_ATTEMPT_PROMPT } from "./workflow/phase_ai_attempt";
 import { MODULE_50_OUTPUTS_PROMPT } from "../audit_outputs/output_registry";
 
 const LOCKED_CONTEXT_INSTRUCTION = `
@@ -40,12 +42,18 @@ Each item MUST include: GL_ID, GL_Date, GL_Payee, GL_Amount, Risk_Profile, Three
 See MODULE 50 for the full expense_samples (Phase 3 v2) structure. Apply EXPENSE_RISK_FRAMEWORK: Target Sample List from Step A, then Step B (Three-Way Match) and Step C (Fund Integrity) per item.
 `;
 
-/** Phase 5 only output: return statutory_compliance and completion_outputs */
+/** Phase 5 only output: return statutory_compliance */
 const PHASE5_OUTPUT_SCHEMA = `
---- OUTPUT: Return ONLY statutory_compliance and completion_outputs ---
-You must return a JSON object with two keys: "statutory_compliance" and "completion_outputs".
-- statutory_compliance: { insurance, gst_reconciliation, income_tax } – Insurance adequacy, GST roll-forward, Income Tax. See MODULE 50.
-- completion_outputs: { issue_register, boundary_disclosure } – Final Issue Register and Boundary Disclosures.
+--- OUTPUT: Return ONLY statutory_compliance ---
+You must return a JSON object with a single key "statutory_compliance" containing { insurance, gst_reconciliation, income_tax }.
+See MODULE 50 for the full statutory_compliance structure. Insurance adequacy, GST roll-forward, Income Tax.
+`;
+
+/** Phase 6 only output: return completion_outputs */
+const PHASE6_OUTPUT_SCHEMA = `
+--- OUTPUT: Return ONLY completion_outputs ---
+You must return a JSON object with a single key "completion_outputs" containing { issue_register, boundary_disclosure }.
+See MODULE 50 for the full completion_outputs structure. Aggregate issues from audit findings; document unresolved areas.
 `;
 
 export function buildPhase5Prompt(): string {
@@ -57,6 +65,56 @@ export function buildPhase5Prompt(): string {
     PHASE_5_COMPLIANCE_PROMPT +
     MODULE_50_OUTPUTS_PROMPT +
     PHASE5_OUTPUT_SCHEMA
+  );
+}
+
+/** AI Attempt output: return ai_attempt_updates (partial patch to merge) */
+const AI_ATTEMPT_OUTPUT_SCHEMA = `
+--- OUTPUT: Return ONLY ai_attempt_updates ---
+You must return a JSON object with a single key "ai_attempt_updates" containing the re-verified items:
+{
+  "ai_attempt_updates": {
+    "levy_reconciliation": { ... } | null,
+    "expense_updates": [ { "merge_key": "exp_0", "item": { GL_ID, GL_Date, GL_Payee, GL_Amount, Three_Way_Match, Fund_Integrity, Overall_Status, ... } } ] | null,
+    "balance_sheet_updates": [ { "line_item": "String", "fund": "String", ...BalanceSheetVerificationItem } ] | null,
+    "statutory_compliance": { insurance?, gst_reconciliation?, income_tax? } | null
+  }
+}
+- For each target phase, include ONLY the re-verified items. Omit phases with no targets.
+- expense_updates: merge_key = exp_N (N = index in original expense_samples). Include full item.
+- balance_sheet_updates: include line_item, fund, section for merge; full BalanceSheetVerificationItem.
+- levy_reconciliation / statutory_compliance: full object if any target in that phase.
+`;
+
+export function buildAiAttemptPrompt(targets: { phase: string; itemId: string; description: string }[]): string {
+  const targetsText = targets.length === 0
+    ? "(No targets – return empty ai_attempt_updates)"
+    : targets.map((t) => `- ${t.phase}: ${t.itemId} – ${t.description}`).join("\n");
+  const targetsBlock = `
+--- TARGET LIST (re-verify ONLY these) ---
+${targetsText}
+`;
+  return (
+    HIERARCHY_INTRO +
+    EVIDENCE_RULES_PROMPT +
+    HIERARCHY_AFTER_EVIDENCE +
+    LOCKED_CONTEXT_INSTRUCTION +
+    PHASE_AI_ATTEMPT_PROMPT +
+    targetsBlock +
+    MODULE_50_OUTPUTS_PROMPT +
+    AI_ATTEMPT_OUTPUT_SCHEMA
+  );
+}
+
+export function buildPhase6Prompt(): string {
+  return (
+    HIERARCHY_INTRO +
+    EVIDENCE_RULES_PROMPT +
+    HIERARCHY_AFTER_EVIDENCE +
+    LOCKED_CONTEXT_INSTRUCTION +
+    PHASE_6_COMPLETION_PROMPT +
+    MODULE_50_OUTPUTS_PROMPT +
+    PHASE6_OUTPUT_SCHEMA
   );
 }
 

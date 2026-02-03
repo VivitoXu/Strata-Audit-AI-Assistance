@@ -38,6 +38,8 @@ export const IntakeSummarySchema = z.object({
   financial_year: z.string().optional(),
   manager_limit: z.number().optional(),
   agm_limit: z.number().optional(),
+  boundary_defined: z.boolean().optional(),
+  bs_extract_warning: z.string().optional(),
 });
 
 export const LevyRecMasterSchema = z.object({
